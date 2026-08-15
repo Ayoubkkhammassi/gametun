@@ -9,14 +9,13 @@ services:
     rootDir: backend
     plan: free
     region: frankfurt
-    buildCommand: npm ci && npm run prisma:generate && npm run build && npm run prisma:deploy
-    startCommand: npm run start:prod
+    buildCommand: npm ci && npm run prisma:generate && npm run build
+    startCommand: npm run prisma:deploy && npm run start:prod
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 3000
+      # PORT est fourni automatiquement par Render (ne pas le fixer).
       - key: DATABASE_URL
         sync: false # à définir dans le dashboard (secret)
       - key: JWT_ACCESS_SECRET
