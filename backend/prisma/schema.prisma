@@ -1,0 +1,455 @@
+// ==========================================================================
+// GameTun — Schéma de base de données (PostgreSQL via Prisma)
+// Couvre les tables demandées (spec §19) + relations.
+// Règle vie privée: la date de naissance exacte n'est JAMAIS exposée par l'API,
+// seul un âge / tranche d'âge dérivé est renvoyé.
+// ==========================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --------------------------------------------------------------------------
+// ENUMS
+// --------------------------------------------------------------------------
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum Language {
+  FR
+  AR
+  EN
+}
+
+enum SkillLevel {
+  BEGINNER // Débutant
+  INTERMEDIATE // Intermédiaire
+  ADVANCED // Avancé
+  EXPERT // Expert
+}
+
+enum PlayStyle {
+  CASUAL
+  COMPETITIVE
+  TEAM_PLAYER
+  STRATEGIST
+  AGGRESSIVE
+  SUPPORT
+}
+
+enum GameMode {
+  RANKED // Classé
+  CASUAL // Décontracté
+  COMPETITIVE
+  CO_OP
+  CUSTOM
+}
+
+enum ConversationType {
+  DIRECT
+  GROUP
+  SQUAD
+}
+
+enum SocialActionType {
+  LIKE // Connecter
+  PASS // Passer
+  FAVORITE // Favori
+}
+
+enum SquadMemberRole {
+  CAPTAIN
+  MEMBER
+}
+
+enum NotificationType {
+  NEW_MATCH
+  NEW_MESSAGE
+  COMPATIBLE_PLAYER
+  SQUAD_ALMOST_FULL
+  INVITATION
+  CONNECTION_REQUEST
+  MINIGAME_RESULT
+  PREMIUM
+  SYSTEM
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  ACTION_TAKEN
+  DISMISSED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+  PENDING
+}
+
+// --------------------------------------------------------------------------
+// COMPTE & AUTHENTIFICATION
+// --------------------------------------------------------------------------
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  passwordHash String
+  pseudo       String        @unique
+  birthDate    DateTime // PRIVÉ — jamais renvoyé tel quel par l'API
+  language     Language      @default(FR)
+  region       String        @default("Tunisie")
+  avatarUrl    String?
+  role         Role          @default(USER)
+  status       AccountStatus @default(ACTIVE)
+  isPremium    Boolean       @default(false)
+  isOnline     Boolean       @default(false)
+  lastSeenAt   DateTime?
+  // Hash du refresh token courant (rotation) — permet la révocation
+  refreshTokenHash String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  // Relations
+  profile          Profile?
+  games            UserGame[]
+  statistics       Statistics?
+  subscription     Subscription?
+  ownedSquads      Squad[]                   @relation("SquadOwner")
+  squadMemberships SquadMember[]
+  sentMessages     Message[]                 @relation("MessageSender")
+  conversations    ConversationParticipant[]
+  notifications    Notification[]
+  socialActionsMade   SocialAction[] @relation("ActionActor")
+  socialActionsGot    SocialAction[] @relation("ActionTarget")
+  matchesAsA       Match[]                   @relation("MatchUserA")
+  matchesAsB       Match[]                   @relation("MatchUserB")
+  reportsMade      Report[]                  @relation("Reporter")
+  reportsAgainst   Report[]                  @relation("Reported")
+  blocksMade       BlockedUser[]             @relation("Blocker")
+  blocksAgainst    BlockedUser[]             @relation("Blocked")
+  ratingsGiven     Reputation[]              @relation("Rater")
+  ratingsReceived  Reputation[]              @relation("Rated")
+
+  @@index([status])
+  @@map("users")
+}
+
+// --------------------------------------------------------------------------
+// PROFIL JOUEUR (public)
+// --------------------------------------------------------------------------
+
+model Profile {
+  id              String     @id @default(cuid())
+  userId          String     @unique
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level           SkillLevel @default(BEGINNER)
+  playStyle       PlayStyle  @default(CASUAL)
+  bio             String?    @db.Text
+  availabilityFrom String?   // "20:00"
+  availabilityTo   String?   // "23:00"
+  // Réputation dénormalisée (moyenne calculée depuis Reputation) pour lecture rapide
+  reputationScore Float      @default(0)
+  reputationCount Int        @default(0)
+  badges          String[]   @default([])
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@map("profiles")
+}
+
+// --------------------------------------------------------------------------
+// JEUX & PRÉFÉRENCES
+// --------------------------------------------------------------------------
+
+model Game {
+  id        String     @id @default(cuid())
+  slug      String     @unique // "valorant"
+  name      String // "Valorant"
+  iconUrl   String?
+  category  String? // FPS, Battle Royale, Sandbox, Sport...
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+
+  users UserGame[]
+  squads Squad[]
+
+  @@map("games")
+}
+
+model UserGame {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameId    String
+  game      Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  level     SkillLevel @default(BEGINNER)
+  isFavorite Boolean   @default(true)
+  createdAt DateTime   @default(now())
+
+  @@unique([userId, gameId])
+  @@index([gameId])
+  @@map("user_games")
+}
+
+// --------------------------------------------------------------------------
+// SOCIAL MATCH (découverte / connexions)
+// --------------------------------------------------------------------------
+
+// Une action de swipe: like / pass / favori
+model SocialAction {
+  id        String           @id @default(cuid())
+  actorId   String
+  actor     User             @relation("ActionActor", fields: [actorId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    User             @relation("ActionTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  type      SocialActionType
+  createdAt DateTime         @default(now())
+
+  @@unique([actorId, targetId])
+  @@index([targetId])
+  @@map("social_actions")
+}
+
+// Connexion mutuelle (les deux se sont "likés") — déclenche une conversation
+model Match {
+  id             String        @id @default(cuid())
+  userAId        String
+  userA          User          @relation("MatchUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userBId        String
+  userB          User          @relation("MatchUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  compatibility  Int? // score % au moment du match (Smart Match)
+  conversationId String?       @unique
+  conversation   Conversation? @relation(fields: [conversationId], references: [id])
+  createdAt      DateTime      @default(now())
+
+  @@unique([userAId, userBId])
+  @@map("matches")
+}
+
+// --------------------------------------------------------------------------
+// SQUADS (équipes)
+// --------------------------------------------------------------------------
+
+model Squad {
+  id            String        @id @default(cuid())
+  name          String
+  gameId        String
+  game          Game          @relation(fields: [gameId], references: [id])
+  mode          GameMode      @default(RANKED)
+  maxPlayers    Int           @default(5)
+  requiredLevel SkillLevel    @default(BEGINNER)
+  language      Language      @default(FR)
+  availabilityFrom String?
+  availabilityTo   String?
+  description   String?       @db.Text
+  isOpen        Boolean       @default(true)
+  ownerId       String
+  owner         User          @relation("SquadOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  members      SquadMember[]
+  conversation Conversation? @relation("SquadConversation")
+
+  @@index([gameId])
+  @@map("squads")
+}
+
+model SquadMember {
+  id       String          @id @default(cuid())
+  squadId  String
+  squad    Squad           @relation(fields: [squadId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     SquadMemberRole @default(MEMBER)
+  joinedAt DateTime        @default(now())
+
+  @@unique([squadId, userId])
+  @@map("squad_members")
+}
+
+// --------------------------------------------------------------------------
+// CHAT
+// --------------------------------------------------------------------------
+
+model Conversation {
+  id        String           @id @default(cuid())
+  type      ConversationType @default(DIRECT)
+  // Si conversation de squad
+  squadId   String?          @unique
+  squad     Squad?           @relation("SquadConversation", fields: [squadId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+  match        Match?
+
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt     DateTime?
+  joinedAt       DateTime     @default(now())
+
+  @@unique([conversationId, userId])
+  @@map("conversation_participants")
+}
+
+enum MessageType {
+  TEXT
+  VOICE
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  type           MessageType  @default(TEXT)
+  body           String       @db.Text
+  // Audio (message vocal) encodé en data URI base64. Null pour un message texte.
+  mediaData      String?      @db.Text
+  // Durée du vocal en secondes (indicatif).
+  mediaDuration  Int?
+  // réactions: { "👍": ["userId1"], "🔥": ["userId2"] }
+  reactions      Json?
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+// --------------------------------------------------------------------------
+// NOTIFICATIONS
+// --------------------------------------------------------------------------
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  data      Json?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// --------------------------------------------------------------------------
+// MODÉRATION: SIGNALEMENTS & BLOCAGES
+// --------------------------------------------------------------------------
+
+model Report {
+  id             String       @id @default(cuid())
+  reporterId     String
+  reporter       User         @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUserId String
+  reportedUser   User         @relation("Reported", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  reason         String
+  details        String?      @db.Text
+  status         ReportStatus @default(PENDING)
+  createdAt      DateTime     @default(now())
+
+  @@index([status])
+  @@map("reports")
+}
+
+model BlockedUser {
+  id        String   @id @default(cuid())
+  blockerId String
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@map("blocked_users")
+}
+
+// --------------------------------------------------------------------------
+// RÉPUTATION (anti-abus: 1 évaluation par (rater, rated, contexte))
+// --------------------------------------------------------------------------
+
+model Reputation {
+  id          String   @id @default(cuid())
+  raterId     String
+  rater       User     @relation("Rater", fields: [raterId], references: [id], onDelete: Cascade)
+  ratedUserId String
+  ratedUser   User     @relation("Rated", fields: [ratedUserId], references: [id], onDelete: Cascade)
+  cooperation Int // 1..5
+  respect     Int // 1..5
+  teamSpirit  Int // 1..5
+  // Contexte (ex: id de squad / match) pour éviter les évaluations en boucle
+  context     String
+  createdAt   DateTime @default(now())
+
+  @@unique([raterId, ratedUserId, context])
+  @@index([ratedUserId])
+  @@map("reputation")
+}
+
+// --------------------------------------------------------------------------
+// STATISTIQUES
+// --------------------------------------------------------------------------
+
+model Statistics {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matchesPlayed Int      @default(0)
+  wins          Int      @default(0)
+  connections   Int      @default(0)
+  squadsJoined  Int      @default(0)
+  hoursPlayed   Float    @default(0)
+  kdRatio       Float    @default(0)
+  updatedAt     DateTime @updatedAt
+
+  @@map("statistics")
+}
+
+// --------------------------------------------------------------------------
+// PREMIUM & ABONNEMENTS
+// --------------------------------------------------------------------------
+
+model Subscription {
+  id        String             @id @default(cuid())
+  userId    String             @unique
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan      String             @default("premium_monthly")
+  status    SubscriptionStatus @default(PENDING)
+  priceTnd  Float              @default(2.99)
+  startedAt DateTime?
+  expiresAt DateTime?
+  provider  String? // fournisseur de paiement (jamais de secret ici)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@map("subscriptions")
+}
