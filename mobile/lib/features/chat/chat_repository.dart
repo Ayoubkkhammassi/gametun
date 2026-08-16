@@ -98,6 +98,13 @@ class ChatMessage {
   }
 }
 
+/// Page de messages + accusé de lecture de l'autre participant.
+class MessagesPage {
+  final List<ChatMessage> items;
+  final DateTime? otherReadAt;
+  const MessagesPage({required this.items, this.otherReadAt});
+}
+
 class ChatRepository {
   final Ref _ref;
   ChatRepository(this._ref);
@@ -109,14 +116,18 @@ class ChatRepository {
         .toList();
   }
 
-  Future<List<ChatMessage>> messages(String conversationId) async {
+  Future<MessagesPage> messages(String conversationId) async {
     final data = await _ref
         .read(apiClientProvider)
         .get('/conversations/$conversationId/messages');
-    final items = (data as Map<String, dynamic>)['items'] as List;
-    return items
+    final map = data as Map<String, dynamic>;
+    final items = (map['items'] as List)
         .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
         .toList();
+    return MessagesPage(
+      items: items,
+      otherReadAt: DateTime.tryParse(map['otherReadAt']?.toString() ?? ''),
+    );
   }
 
   Future<ChatMessage> send(String conversationId, String body) async {

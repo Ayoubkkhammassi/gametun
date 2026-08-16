@@ -70,13 +70,41 @@ export class ChatService {
       take: limit,
     });
 
-    // Marque la conversation comme lue.
+    // Date de dernière lecture des AUTRES participants (pour l'accusé "Vu").
+    const otherReadAt = await this.otherReadAt(userId, conversationId);
+
+    // Marque la conversation comme lue par moi.
     await this.prisma.conversationParticipant.updateMany({
       where: { conversationId, userId },
       data: { lastReadAt: new Date() },
     });
 
-    return { items: messages.reverse(), page, limit };
+    return { items: messages.reverse(), page, limit, otherReadAt };
+  }
+
+  /** Date min de lecture parmi les autres participants (null si jamais lu). */
+  async otherReadAt(
+    userId: string,
+    conversationId: string,
+  ): Promise<Date | null> {
+    const parts = await this.prisma.conversationParticipant.findMany({
+      where: { conversationId, userId: { not: userId }, lastReadAt: { not: null } },
+      select: { lastReadAt: true },
+    });
+    const dates = parts
+      .map((p) => p.lastReadAt!)
+      .map((d) => d.getTime());
+    return dates.length ? new Date(Math.min(...dates)) : null;
+  }
+
+  /** Marque la conversation comme lue par l'utilisateur, renvoie l'instant. */
+  async markRead(userId: string, conversationId: string): Promise<Date> {
+    const now = new Date();
+    await this.prisma.conversationParticipant.updateMany({
+      where: { conversationId, userId },
+      data: { lastReadAt: now },
+    });
+    return now;
   }
 
   /** Envoie un message (texte ou vocal). L'émission temps réel est faite par la gateway. */

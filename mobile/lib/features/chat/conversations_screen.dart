@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
@@ -14,19 +16,50 @@ class ConversationsScreen extends ConsumerStatefulWidget {
       _ConversationsScreenState();
 }
 
-class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
+class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
+    with WidgetsBindingObserver {
   Future<List<Conversation>>? _future;
+  Timer? _autoRefresh;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _reload();
+    // Rafraîchit la liste toute seule (nouveaux messages, statut en ligne).
+    _autoRefresh = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _silentReload(),
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _silentReload();
+  }
+
+  @override
+  void dispose() {
+    _autoRefresh?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   void _reload() {
     setState(() {
       _future = ref.read(chatRepositoryProvider).listConversations();
     });
+  }
+
+  /// Recharge en arrière-plan sans faire clignoter le spinner.
+  Future<void> _silentReload() async {
+    try {
+      final list =
+          await ref.read(chatRepositoryProvider).listConversations();
+      if (mounted) setState(() => _future = Future.value(list));
+    } catch (_) {
+      // silencieux : on garde l'affichage courant
+    }
   }
 
   @override

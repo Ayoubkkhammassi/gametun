@@ -76,6 +76,29 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (data?.conversationId) client.join(`conv:${data.conversationId}`);
   }
 
+  /** L'utilisateur a lu la conversation → accusé "Vu" temps réel. */
+  @SubscribeMessage('read')
+  async onRead(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { conversationId: string },
+  ): Promise<void> {
+    const userId = client.data.userId as string | undefined;
+    if (!userId || !data?.conversationId) return;
+    const now = new Date();
+    await this.prisma.conversationParticipant
+      .updateMany({
+        where: { conversationId: data.conversationId, userId },
+        data: { lastReadAt: now },
+      })
+      .catch(() => undefined);
+    // Prévient les autres membres (pour cocher "Vu" sous leurs messages).
+    client.to(`conv:${data.conversationId}`).emit('read', {
+      conversationId: data.conversationId,
+      userId,
+      readAt: now.toISOString(),
+    });
+  }
+
   /** Indicateur "en train d'écrire". */
   @SubscribeMessage('typing')
   onTyping(

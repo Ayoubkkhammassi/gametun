@@ -33,6 +33,37 @@ class ChatSocket {
     _socket?.emit('typing', {'conversationId': conversationId});
   }
 
+  /// Signale au serveur que j'ai lu la conversation (accusé "Vu").
+  void sendRead(String conversationId) {
+    _socket?.emit('read', {'conversationId': conversationId});
+  }
+
+  /// Écoute les accusés de lecture des autres participants.
+  void onRead(void Function(String conversationId, String userId, DateTime readAt)
+      handler) {
+    _socket?.on('read', (data) {
+      if (data is Map) {
+        final at = DateTime.tryParse(data['readAt']?.toString() ?? '');
+        if (at != null) {
+          handler(
+            data['conversationId']?.toString() ?? '',
+            data['userId']?.toString() ?? '',
+            at,
+          );
+        }
+      }
+    });
+  }
+
+  /// Écoute les changements de statut en ligne/hors ligne.
+  void onPresence(void Function(String userId, bool isOnline) handler) {
+    _socket?.on('presence', (data) {
+      if (data is Map && data['userId'] != null) {
+        handler(data['userId'].toString(), data['isOnline'] == true);
+      }
+    });
+  }
+
   /// Écoute les nouveaux messages temps réel.
   void onMessage(void Function(Map<String, dynamic>) handler) {
     _socket?.on('message', (data) {

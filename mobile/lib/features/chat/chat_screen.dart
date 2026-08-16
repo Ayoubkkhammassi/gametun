@@ -72,6 +72,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Timer? _recordTimer;
   String? _playingId;
   String _themeKey = 'violet'; // thème de couleur de la conversation
+  DateTime? _otherReadAt; // dernière lecture de l'autre (accusé "Vu")
+  late bool _otherOnline = widget.isOnline; // statut en ligne temps réel
 
   String get _themePrefKey => 'chat_theme_${widget.conversationId}';
 
@@ -108,13 +110,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _init() async {
     try {
-      final list = await ref
+      final page = await ref
           .read(chatRepositoryProvider)
           .messages(widget.conversationId);
       setState(() {
         _messages
           ..clear()
-          ..addAll(list);
+          ..addAll(page.items);
+        _otherReadAt = page.otherReadAt;
         _loading = false;
       });
       _scrollToBottom();
@@ -126,13 +129,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (token != null) {
       _socket.connect(token);
       _socket.joinConversation(widget.conversationId);
+      // J'ouvre la conversation → je la marque comme lue (accusé "Vu").
+      _socket.sendRead(widget.conversationId);
+      final myId = ref.read(authControllerProvider).user?.id;
       _socket.onMessage((data) {
         final msg = ChatMessage.fromJson(data);
         if (msg.conversationId != widget.conversationId) return;
         _addOrUpdate(msg);
+        // Message reçu alors que la conv est ouverte → je le marque lu.
+        if (msg.senderId != myId) _socket.sendRead(widget.conversationId);
       });
       _socket.onDeleted((id) {
         setState(() => _messages.removeWhere((m) => m.id == id));
+      });
+      // L'autre a lu → coche "Vu" sous mes messages.
+      _socket.onRead((convId, userId, readAt) {
+        if (convId != widget.conversationId || userId == myId) return;
+        setState(() {
+          if (_otherReadAt == null || readAt.isAfter(_otherReadAt!)) {
+            _otherReadAt = readAt;
+          }
+        });
+      });
+      // Statut en ligne/hors ligne temps réel de l'autre joueur.
+      _socket.onPresence((userId, isOnline) {
+        if (userId == widget.otherUserId) {
+          setState(() => _otherOnline = isOnline);
+        }
       });
     }
   }
@@ -364,9 +387,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               // message d'une série du même expéditeur.
                               final isLastOfGroup = i == _messages.length - 1 ||
                                   _messages[i + 1].senderId != m.senderId;
+                              final read = mine &&
+                                  _otherReadAt != null &&
+                                  !m.createdAt.isAfter(_otherReadAt!);
                               return _Bubble(
                                 message: m,
                                 mine: mine,
+                                read: read,
                                 title: widget.title,
                                 showAvatar: !mine && isLastOfGroup,
                                 playing: _playingId == m.id,
@@ -390,7 +417,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   PreferredSizeWidget _buildHeader(BuildContext context) {
     final subtitle = widget.isGroup
         ? '${widget.memberNames.length} membres'
-        : (widget.isOnline ? 'En ligne' : 'Hors ligne');
+        : (_otherOnline ? 'En ligne' : 'Hors ligne');
     return AppBar(
       titleSpacing: 0,
       title: InkWell(
@@ -399,7 +426,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             : (widget.otherUserId != null ? _openProfile : null),
         child: Row(
           children: [
-            _Avatar(title: widget.title, radius: 18, online: widget.isOnline),
+            _Avatar(title: widget.title, radius: 18, online: _otherOnline),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -424,7 +451,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     subtitle,
                     style: TextStyle(
                         fontSize: 12,
-                        color: widget.isOnline && !widget.isGroup
+                        color: _otherOnline && !widget.isGroup
                             ? AppColors.green
                             : AppColors.textMuted),
                   ),
@@ -966,6 +993,7 @@ class _EmojiStrip extends StatelessWidget {
 class _Bubble extends StatelessWidget {
   final ChatMessage message;
   final bool mine;
+  final bool read;
   final String title;
   final bool showAvatar;
   final bool playing;
@@ -977,6 +1005,7 @@ class _Bubble extends StatelessWidget {
   const _Bubble({
     required this.message,
     required this.mine,
+    this.read = false,
     required this.title,
     required this.showAvatar,
     required this.playing,
@@ -1062,7 +1091,10 @@ class _Bubble extends StatelessWidget {
                   color: AppColors.textMuted, fontSize: 10)),
           if (mine) ...[
             const SizedBox(width: 4),
-            const Icon(Icons.done_all, size: 13, color: AppColors.cyan),
+            // ✓ envoyé (gris) → ✓✓ vu (cyan) quand l'autre a lu.
+            Icon(read ? Icons.done_all : Icons.check,
+                size: 13,
+                color: read ? AppColors.cyan : AppColors.textMuted),
           ],
         ],
       ),

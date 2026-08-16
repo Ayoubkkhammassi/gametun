@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
@@ -32,8 +34,42 @@ final notificationsProvider =
       .toList();
 });
 
-class NotificationsScreen extends ConsumerWidget {
+class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
+
+  @override
+  ConsumerState<NotificationsScreen> createState() =>
+      _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
+    with WidgetsBindingObserver {
+  Timer? _autoRefresh;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Rafraîchit les notifications toutes seules.
+    _autoRefresh = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => ref.invalidate(notificationsProvider),
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(notificationsProvider);
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoRefresh?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
   IconData _icon(String type) {
     switch (type) {
@@ -53,7 +89,7 @@ class NotificationsScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final async = ref.watch(notificationsProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('NOTIFICATIONS')),
@@ -63,6 +99,8 @@ class NotificationsScreen extends ConsumerWidget {
           child: RefreshIndicator(
             onRefresh: () async => ref.refresh(notificationsProvider.future),
             child: async.when(
+              skipLoadingOnReload: true,
+              skipLoadingOnRefresh: true,
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => ListView(children: [
                 Padding(
