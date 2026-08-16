@@ -44,8 +44,9 @@ dependencies:
   # Connexion Google
   google_sign_in: ^6.2.2
 
-  # Mise à jour intégrée (ouvre le lien de téléchargement)
+  # Mise à jour intégrée (ouvre le lien de téléchargement + installe l'APK)
   url_launcher: ^6.3.1
+  open_filex: ^4.5.0
 
 dev_dependencies:
   flutter_test:

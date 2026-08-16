@@ -2,6 +2,8 @@
     <!-- Messages vocaux : enregistrement micro -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Mise à jour intégrée : installer le nouvel APK directement depuis l'app -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <application
         android:label="gametun"
         android:name="${applicationName}"
