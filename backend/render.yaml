@@ -37,3 +37,10 @@ services:
       # Numéro D17 pour les paiements Premium manuels.
       - key: D17_NUMBER
         value: "28492755"
+      # Système de mise à jour intégré (incrémenter à chaque nouvel APK).
+      - key: APP_VERSION_CODE
+        value: "2"
+      - key: APP_VERSION_NAME
+        value: "1.0.2"
+      - key: PUBLIC_BASE_URL
+        value: https://gametun-api.onrender.com

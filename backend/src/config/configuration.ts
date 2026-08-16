@@ -23,6 +23,10 @@ export interface AppConfig {
   premiumPriceTnd: number;
   googleClientId: string;
   d17Number: string;
+  appVersionCode: number;
+  appVersionName: string;
+  appUpdateMessage: string;
+  publicBaseUrl: string;
 }
 
 class ConfigError extends Error {}
@@ -88,5 +92,16 @@ export function loadConfiguration(): AppConfig {
     googleClientId: optional('GOOGLE_CLIENT_ID', ''),
     // Numéro D17 où les joueurs envoient le paiement Premium (manuel).
     d17Number: optional('D17_NUMBER', '28492755'),
+    // Système de mise à jour intégré.
+    appVersionCode: toInt(optional('APP_VERSION_CODE', '1'), 'APP_VERSION_CODE'),
+    appVersionName: optional('APP_VERSION_NAME', '1.0.0'),
+    appUpdateMessage: optional(
+      'APP_UPDATE_MESSAGE',
+      'Une nouvelle version de GameTun est disponible 🎮',
+    ),
+    publicBaseUrl: optional(
+      'PUBLIC_BASE_URL',
+      'https://gametun-api.onrender.com',
+    ),
   };
 }

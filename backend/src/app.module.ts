@@ -27,6 +27,7 @@ import { ReputationModule } from './modules/reputation/reputation.module';
 import { MinigamesModule } from './modules/minigames/minigames.module';
 import { GameSessionModule } from './modules/game-session/game-session.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { AppUpdateModule } from './modules/app-update/app-update.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { AdminModule } from './modules/admin/admin.module';
     GameSessionModule,
     PremiumModule,
     AdminModule,
+    AppUpdateModule,
     HealthModule,
   ],
   providers: [
