@@ -39,8 +39,10 @@ services:
         value: "28492755"
       # Système de mise à jour intégré (incrémenter à chaque nouvel APK).
       - key: APP_VERSION_CODE
-        value: "2"
+        value: "3"
       - key: APP_VERSION_NAME
-        value: "1.0.2"
+        value: "1.0.3"
+      - key: APP_UPDATE_MESSAGE
+        value: "Photos & vocaux plus rapides + optimisations 🚀"
       - key: PUBLIC_BASE_URL
         value: https://gametun-api.onrender.com
