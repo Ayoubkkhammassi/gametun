@@ -165,6 +165,16 @@ model Profile {
   bio             String?    @db.Text
   availabilityFrom String?   // "20:00"
   availabilityTo   String?   // "23:00"
+  // ---- Profil enrichi (façon carte joueur) -------------------------------
+  photoUrls       String[]   @default([]) // galerie (URLs Cloudinary)
+  platform        String?    // PC, PlayStation, Xbox, Mobile, Switch
+  rank            String?    // ex: "Diamant 2", "Immortal"
+  hasMic          Boolean    @default(false)
+  playerType      String?    // Casual, Compétitif, Streamer
+  favoriteGenres  String[]   @default([]) // FPS, MOBA, RPG, Battle Royale...
+  spokenLanguages String[]   @default([]) // Arabe, Français, Anglais...
+  yearsExperience Int?       // années d'expérience gaming
+  funFacts        Json?      // [{ question, answer }] (prompts gaming)
   // Réputation dénormalisée (moyenne calculée depuis Reputation) pour lecture rapide
   reputationScore Float      @default(0)
   reputationCount Int        @default(0)

@@ -157,9 +157,154 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
             }).toList(),
           ),
         ],
+        ..._buildPlayerCard(profile),
       ],
     );
   }
+
+  /// Sections « carte joueur » : galerie, infos, genres, langues, prompts.
+  List<Widget> _buildPlayerCard(Map<String, dynamic> profile) {
+    final photos =
+        ((profile['photoUrls'] ?? []) as List).map((e) => e.toString()).toList();
+    final genres = ((profile['favoriteGenres'] ?? []) as List)
+        .map((e) => e.toString())
+        .toList();
+    final languages = ((profile['spokenLanguages'] ?? []) as List)
+        .map((e) => e.toString())
+        .toList();
+    final funFacts = (profile['funFacts'] ?? []) as List;
+    final platform = profile['platform']?.toString();
+    final rank = profile['rank']?.toString();
+    final playerType = profile['playerType']?.toString();
+    final hasMic = profile['hasMic'] == true;
+    final years = (profile['yearsExperience'] ?? 0) as int;
+
+    final infoChips = <Widget>[
+      if (platform != null && platform.isNotEmpty)
+        _infoChip(Icons.videogame_asset, platform),
+      if (rank != null && rank.isNotEmpty) _infoChip(Icons.military_tech, rank),
+      if (playerType != null && playerType.isNotEmpty)
+        _infoChip(Icons.person, playerType),
+      if (hasMic) _infoChip(Icons.mic, 'Micro'),
+      if (years > 0) _infoChip(Icons.timeline, '$years an${years > 1 ? 's' : ''}'),
+    ];
+
+    return [
+      if (photos.isNotEmpty) ...[
+        const SizedBox(height: 20),
+        _sectionTitle('Photos'),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 110,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: photos.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            itemBuilder: (_, i) => ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Image.network(photos[i],
+                  width: 110, height: 110, fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Container(
+                        width: 110,
+                        height: 110,
+                        color: AppColors.surfaceAlt,
+                        child: const Icon(Icons.broken_image,
+                            color: AppColors.textMuted),
+                      )),
+            ),
+          ),
+        ),
+      ],
+      if (infoChips.isNotEmpty) ...[
+        const SizedBox(height: 20),
+        _sectionTitle('Infos joueur'),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 8, children: infoChips),
+      ],
+      if (genres.isNotEmpty) ...[
+        const SizedBox(height: 20),
+        _sectionTitle('Genres préférés'),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: genres.map((g) => _tag(g)).toList(),
+        ),
+      ],
+      if (languages.isNotEmpty) ...[
+        const SizedBox(height: 20),
+        _sectionTitle('Langues'),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: languages.map((l) => _tag(l)).toList(),
+        ),
+      ],
+      if (funFacts.isNotEmpty) ...[
+        const SizedBox(height: 20),
+        _sectionTitle('À propos en plus'),
+        const SizedBox(height: 10),
+        ...funFacts.map((f) {
+          final m = f as Map<String, dynamic>;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: GtCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(m['question']?.toString() ?? '',
+                      style: const TextStyle(
+                          color: AppColors.textMuted, fontSize: 12)),
+                  const SizedBox(height: 4),
+                  Text(m['answer']?.toString() ?? '',
+                      style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
+    ];
+  }
+
+  Widget _sectionTitle(String t) => Text(t,
+      style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w700,
+          fontSize: 15));
+
+  Widget _tag(String text) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.stroke),
+        ),
+        child: Text(text,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+      );
+
+  Widget _infoChip(IconData icon, String text) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.stroke),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: AppColors.cyan),
+            const SizedBox(width: 6),
+            Text(text,
+                style: const TextStyle(
+                    color: AppColors.textPrimary, fontSize: 13)),
+          ],
+        ),
+      );
 
   Widget _stat(String value, String label, Color color) {
     return Expanded(

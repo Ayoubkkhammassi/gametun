@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
@@ -17,7 +18,7 @@ export class ProfilesService {
   }
 
   async updateMyProfile(userId: string, dto: UpdateProfileDto) {
-    const { avatarUrl, favoriteGameSlugs, ...profileData } = dto;
+    const { avatarUrl, favoriteGameSlugs, funFacts, ...profileData } = dto;
 
     // Met à jour l'avatar sur le compte utilisateur si fourni.
     if (avatarUrl !== undefined) {
@@ -32,9 +33,15 @@ export class ProfilesService {
       await this.syncFavoriteGames(userId, favoriteGameSlugs);
     }
 
+    // funFacts est un champ JSON : cast explicite pour Prisma.
+    const data: Prisma.ProfileUpdateInput = { ...profileData };
+    if (funFacts !== undefined) {
+      data.funFacts = funFacts as unknown as Prisma.InputJsonValue;
+    }
+
     return this.prisma.profile.update({
       where: { userId },
-      data: profileData,
+      data,
     });
   }
 
