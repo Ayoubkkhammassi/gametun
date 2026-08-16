@@ -26,3 +26,6 @@ prisma/*.db-journal
 .vscode/
 .DS_Store
 Thumbs.db
+
+# TS incremental cache
+*.tsbuildinfo
