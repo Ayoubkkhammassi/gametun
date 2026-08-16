@@ -9,7 +9,8 @@ services:
     rootDir: backend
     plan: free
     region: frankfurt
-    buildCommand: npm ci && npm run prisma:generate && npm run build
+    # --include=dev : garde nest/prisma/tsc (NODE_ENV=production les exclurait).
+    buildCommand: npm ci --include=dev && npm run prisma:generate && npm run build
     startCommand: npm run prisma:deploy && npm run start:prod
     healthCheckPath: /api/v1/health
     envVars:
