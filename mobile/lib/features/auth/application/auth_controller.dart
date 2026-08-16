@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import '../../../core/config/env.dart';
 import '../../../core/providers.dart';
 import '../../../core/network/api_exception.dart';
 import '../data/auth_repository.dart';
@@ -45,18 +47,24 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   /// Au démarrage : tente de restaurer la session via le token stocké.
+  /// Durée minimale d'affichage du splash animé (~2,2s) pour l'effet marque.
   Future<void> _bootstrap() async {
+    final minSplash =
+        Future<void>.delayed(const Duration(milliseconds: 2200));
     final tokens = _ref.read(tokenStorageProvider);
     final token = await tokens.accessToken;
     if (token == null) {
+      await minSplash;
       state = state.copyWith(status: AuthStatus.unauthenticated);
       return;
     }
     try {
       final user = await _repo.me();
+      await minSplash;
       state = state.copyWith(status: AuthStatus.authenticated, user: user);
     } catch (_) {
       await tokens.clear();
+      await minSplash;
       state = state.copyWith(status: AuthStatus.unauthenticated);
     }
   }
@@ -106,6 +114,52 @@ class AuthController extends StateNotifier<AuthState> {
       return true;
     } on ApiException catch (e) {
       state = state.copyWith(loading: false, error: e.message);
+      return false;
+    }
+  }
+
+  /// Recharge l'utilisateur depuis l'API (après édition du profil/avatar).
+  Future<void> refreshUser() async {
+    try {
+      final user = await _repo.me();
+      state = state.copyWith(user: user);
+    } catch (_) {}
+  }
+
+  /// Connexion « Continuer avec Google ».
+  Future<bool> loginWithGoogle() async {
+    state = state.copyWith(loading: true, clearError: true);
+    try {
+      final googleSignIn = GoogleSignIn(
+        serverClientId: Env.googleServerClientId,
+        scopes: const ['email', 'profile'],
+      );
+      await googleSignIn.signOut(); // force le choix du compte
+      final account = await googleSignIn.signIn();
+      if (account == null) {
+        state = state.copyWith(loading: false); // annulé par l'utilisateur
+        return false;
+      }
+      final gAuth = await account.authentication;
+      final idToken = gAuth.idToken;
+      if (idToken == null) {
+        state = state.copyWith(
+            loading: false, error: 'Échec Google (pas de token).');
+        return false;
+      }
+      final user = await _repo.googleLogin(idToken);
+      state = state.copyWith(
+        status: AuthStatus.authenticated,
+        user: user,
+        loading: false,
+      );
+      return true;
+    } on ApiException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+      return false;
+    } catch (e) {
+      state = state.copyWith(
+          loading: false, error: 'Connexion Google impossible.');
       return false;
     }
   }

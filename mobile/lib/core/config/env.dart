@@ -14,4 +14,17 @@ class Env {
 
   static const Duration connectTimeout = Duration(seconds: 15);
   static const Duration receiveTimeout = Duration(seconds: 20);
+
+  /// Numéro de version de CETTE build (à incrémenter à chaque nouvel APK).
+  /// Le serveur renvoie la dernière version ; si elle est > à celle-ci,
+  /// l'app propose la mise à jour.
+  static const int appVersionCode = 4;
+
+  /// ID client Web Google (public) — pour obtenir un idToken vérifiable serveur.
+  static const String googleServerClientId =
+      '560455067095-1m461lg873hn29ccfg24m8ga3a74g3aa.apps.googleusercontent.com';
+
+  /// Cloudinary — stockage des médias (photos, vocaux) hors base de données.
+  static const String cloudinaryCloudName = 'emepl8sr';
+  static const String cloudinaryUploadPreset = 'nf86n2bx';
 }

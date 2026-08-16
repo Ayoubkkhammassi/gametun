@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/gt_button.dart';
 import '../../../core/widgets/gt_scaffold.dart';
@@ -24,10 +26,53 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _region = TextEditingController(text: 'Tunisie');
   bool _obscure = true;
 
+  Timer? _pseudoDebounce;
+  String? _pseudoStatus; // message affiché
+  bool? _pseudoAvailable; // null=vérif en cours, true=libre, false=pris/invalide
+
   static const _languages = {'FR': 'Français', 'AR': 'العربية', 'EN': 'English'};
+
+  /// Vérifie la disponibilité du pseudo en direct (avec anti-rebond).
+  void _onPseudoChanged(String value) {
+    _pseudoDebounce?.cancel();
+    final t = value.trim();
+    if (t.length < 3) {
+      setState(() {
+        _pseudoStatus = null;
+        _pseudoAvailable = null;
+      });
+      return;
+    }
+    setState(() {
+      _pseudoStatus = 'Vérification...';
+      _pseudoAvailable = null;
+    });
+    _pseudoDebounce = Timer(const Duration(milliseconds: 500), () async {
+      try {
+        final res =
+            await ref.read(authRepositoryProvider).checkPseudo(t);
+        if (!mounted || _pseudo.text.trim() != t) return;
+        setState(() {
+          if (!res.valid) {
+            _pseudoAvailable = false;
+            _pseudoStatus = 'Pseudo invalide';
+          } else if (res.available) {
+            _pseudoAvailable = true;
+            _pseudoStatus = 'Disponible ✓';
+          } else {
+            _pseudoAvailable = false;
+            _pseudoStatus = 'Ce nom existe déjà';
+          }
+        });
+      } catch (_) {
+        if (mounted) setState(() => _pseudoStatus = null);
+      }
+    });
+  }
 
   @override
   void dispose() {
+    _pseudoDebounce?.cancel();
     _pseudo.dispose();
     _email.dispose();
     _password.dispose();
@@ -109,15 +154,48 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     label: 'Pseudo',
                     hint: 'ex: AYOUB',
                     icon: Icons.badge_outlined,
+                    onChanged: _onPseudoChanged,
                     validator: (v) {
                       final t = v?.trim() ?? '';
                       if (t.length < 3) return 'Au moins 3 caractères';
                       if (!RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(t)) {
                         return 'Lettres, chiffres, _ et - uniquement';
                       }
+                      if (_pseudoAvailable == false) return 'Pseudo déjà pris';
                       return null;
                     },
                   ),
+                  if (_pseudoStatus != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6, left: 4),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _pseudoAvailable == true
+                                ? Icons.check_circle
+                                : _pseudoAvailable == false
+                                    ? Icons.cancel
+                                    : Icons.hourglass_empty,
+                            size: 15,
+                            color: _pseudoAvailable == true
+                                ? AppColors.green
+                                : _pseudoAvailable == false
+                                    ? AppColors.danger
+                                    : AppColors.textMuted,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(_pseudoStatus!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _pseudoAvailable == true
+                                    ? AppColors.green
+                                    : _pseudoAvailable == false
+                                        ? AppColors.danger
+                                        : AppColors.textMuted,
+                              )),
+                        ],
+                      ),
+                    ),
                   const SizedBox(height: 18),
                   GtTextField(
                     controller: _email,

@@ -6,11 +6,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/network/cloudinary.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/gt_scaffold.dart';
 import '../auth/application/auth_controller.dart';
 import '../multiplayer/multiplayer_game_screen.dart';
+import '../profiles/user_profile_screen.dart';
 import 'chat_repository.dart';
 import 'chat_socket.dart';
 
@@ -20,6 +23,16 @@ const _emojiStrip = [
 ];
 const _reactionEmojis = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
+/// Thèmes de couleur des bulles (comme Insta), choisis par conversation.
+const _chatThemes = <String, List<Color>>{
+  'violet': [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+  'magenta': [Color(0xFFEC4899), Color(0xFF8B5CF6)],
+  'cyan': [Color(0xFF22D3EE), Color(0xFF0EA5E9)],
+  'vert': [Color(0xFF10B981), Color(0xFF059669)],
+  'or': [Color(0xFFFBBF24), Color(0xFFF59E0B)],
+  'rouge': [Color(0xFFEF4444), Color(0xFFB91C1C)],
+};
+
 /// Conversation façon Instagram : en-tête avatar+statut, bulles avec avatars,
 /// double-tap ❤️, réactions, emojis, messages vocaux.
 class ChatScreen extends ConsumerStatefulWidget {
@@ -28,6 +41,7 @@ class ChatScreen extends ConsumerStatefulWidget {
   final bool isOnline;
   final bool isGroup;
   final List<String> memberNames;
+  final String? otherUserId;
   const ChatScreen({
     super.key,
     required this.conversationId,
@@ -35,6 +49,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.isOnline = false,
     this.isGroup = false,
     this.memberNames = const [],
+    this.otherUserId,
   });
 
   @override
@@ -56,6 +71,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Duration _recordDuration = Duration.zero;
   Timer? _recordTimer;
   String? _playingId;
+  String _themeKey = 'violet'; // thème de couleur de la conversation
+
+  String get _themePrefKey => 'chat_theme_${widget.conversationId}';
+
+  LinearGradient get _mineGradient => LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: _chatThemes[_themeKey] ?? _chatThemes['violet']!,
+      );
 
   @override
   void initState() {
@@ -64,7 +88,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _player.onPlayerComplete.listen((_) {
       if (mounted) setState(() => _playingId = null);
     });
+    _loadTheme();
     _init();
+  }
+
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_themePrefKey);
+    if (saved != null && _chatThemes.containsKey(saved)) {
+      setState(() => _themeKey = saved);
+    }
+  }
+
+  Future<void> _setTheme(String key) async {
+    setState(() => _themeKey = key);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themePrefKey, key);
   }
 
   Future<void> _init() async {
@@ -92,6 +131,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         if (msg.conversationId != widget.conversationId) return;
         _addOrUpdate(msg);
       });
+      _socket.onDeleted((id) {
+        setState(() => _messages.removeWhere((m) => m.id == id));
+      });
+    }
+  }
+
+  Future<void> _deleteMessage(ChatMessage m) async {
+    setState(() => _messages.removeWhere((x) => x.id == m.id));
+    try {
+      await ref.read(chatRepositoryProvider).deleteMessage(m.id);
+    } catch (_) {
+      _snack('Suppression impossible.');
     }
   }
 
@@ -152,12 +203,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() => _recording = false);
     if (path == null) return;
     try {
-      final bytes = await File(path).readAsBytes();
-      final dataUri = 'data:audio/mp4;base64,${base64Encode(bytes)}';
       setState(() => _sending = true);
+      // Upload du vocal sur Cloudinary → on n'envoie que l'URL.
+      final url = await Cloudinary().upload(File(path), resourceType: 'video');
+      if (url == null) {
+        _snack('Vocal non envoyé.');
+        return;
+      }
       final msg = await ref
           .read(chatRepositoryProvider)
-          .sendVoice(widget.conversationId, dataUri, seconds < 1 ? 1 : seconds);
+          .sendVoice(widget.conversationId, url, seconds < 1 ? 1 : seconds);
       _addOrUpdate(msg);
     } catch (_) {
       _snack('Vocal non envoyé.');
@@ -173,12 +228,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       setState(() => _playingId = null);
       return;
     }
-    final base64Part = m.mediaData!.contains(',')
-        ? m.mediaData!.split(',').last
-        : m.mediaData!;
-    final bytes = base64Decode(base64Part);
     await _player.stop();
-    await _player.play(BytesSource(bytes));
+    if (m.mediaData!.startsWith('http')) {
+      // Vocal hébergé sur Cloudinary.
+      await _player.play(UrlSource(m.mediaData!));
+    } else {
+      // Ancien format base64 (compatibilité).
+      final base64Part = m.mediaData!.contains(',')
+          ? m.mediaData!.split(',').last
+          : m.mediaData!;
+      await _player.play(BytesSource(base64Decode(base64Part)));
+    }
     setState(() => _playingId = m.id);
   }
 
@@ -193,6 +253,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _showReactionPicker(ChatMessage m) {
+    final myId = ref.read(authControllerProvider).user?.id;
+    final mine = m.senderId == myId;
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface,
@@ -200,18 +262,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: _reactionEmojis
-              .map((e) => GestureDetector(
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      _react(m, e);
-                    },
-                    child: Text(e, style: const TextStyle(fontSize: 34)),
-                  ))
-              .toList(),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: _reactionEmojis
+                  .map((e) => GestureDetector(
+                        onTap: () {
+                          Navigator.of(ctx).pop();
+                          _react(m, e);
+                        },
+                        child: Text(e, style: const TextStyle(fontSize: 34)),
+                      ))
+                  .toList(),
+            ),
+            if (mine) ...[
+              const Divider(height: 28, color: AppColors.stroke),
+              ListTile(
+                leading: const Icon(Icons.delete_outline,
+                    color: AppColors.danger),
+                title: const Text('Supprimer le message',
+                    style: TextStyle(color: AppColors.danger)),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _deleteMessage(m);
+                },
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -290,6 +370,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 title: widget.title,
                                 showAvatar: !mine && isLastOfGroup,
                                 playing: _playingId == m.id,
+                                mineGradient: _mineGradient,
                                 onPlay: () => _playVoice(m),
                                 onDoubleTap: () => _react(m, '❤️'),
                                 onLongPress: () => _showReactionPicker(m),
@@ -313,7 +394,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return AppBar(
       titleSpacing: 0,
       title: InkWell(
-        onTap: widget.isGroup ? _showMembers : null,
+        onTap: widget.isGroup
+            ? _showMembers
+            : (widget.otherUserId != null ? _openProfile : null),
         child: Row(
           children: [
             _Avatar(title: widget.title, radius: 18, online: widget.isOnline),
@@ -358,13 +441,127 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           icon: const Icon(Icons.videogame_asset),
           tooltip: 'Jouer à un mini-jeu',
         ),
-        if (widget.isGroup)
-          IconButton(
-            onPressed: _showMembers,
-            icon: const Icon(Icons.group),
-            tooltip: 'Membres',
-          ),
+        // Paramètres de la conversation (comme Insta).
+        IconButton(
+          onPressed: _showConversationSettings,
+          icon: const Icon(Icons.more_vert),
+          tooltip: 'Paramètres',
+        ),
       ],
+    );
+  }
+
+  /// Menu paramètres de la conversation (thème, membres) — style Insta.
+  void _showConversationSettings() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.stroke,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(widget.title,
+                  style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800)),
+              const SizedBox(height: 20),
+              const Text('Thème de la conversation',
+                  style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: _chatThemes.entries.map((e) {
+                  final selected = e.key == _themeKey;
+                  return GestureDetector(
+                    onTap: () {
+                      _setTheme(e.key);
+                      setSheet(() {});
+                    },
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: e.value),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: selected
+                              ? Colors.white
+                              : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                      child: selected
+                          ? const Icon(Icons.check,
+                              color: Colors.white, size: 22)
+                          : null,
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.group, color: AppColors.textPrimary),
+                title: Text(
+                    widget.isGroup
+                        ? 'Membres (${widget.memberNames.length})'
+                        : 'Voir le profil',
+                    style: const TextStyle(color: AppColors.textPrimary)),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  if (widget.isGroup) {
+                    _showMembers();
+                  } else {
+                    _openProfile();
+                  }
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.videogame_asset,
+                    color: AppColors.textPrimary),
+                title: const Text('Jouer à un mini-jeu',
+                    style: TextStyle(color: AppColors.textPrimary)),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _showGameChooser();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Ouvre le profil public de l'autre joueur (conversation directe).
+  void _openProfile() {
+    final id = widget.otherUserId;
+    if (id == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => UserProfileScreen(userId: id)),
     );
   }
 
@@ -772,6 +969,7 @@ class _Bubble extends StatelessWidget {
   final String title;
   final bool showAvatar;
   final bool playing;
+  final Gradient mineGradient;
   final VoidCallback onPlay;
   final VoidCallback onDoubleTap;
   final VoidCallback onLongPress;
@@ -782,6 +980,7 @@ class _Bubble extends StatelessWidget {
     required this.title,
     required this.showAvatar,
     required this.playing,
+    required this.mineGradient,
     required this.onPlay,
     required this.onDoubleTap,
     required this.onLongPress,
@@ -803,7 +1002,7 @@ class _Bubble extends StatelessWidget {
             constraints: BoxConstraints(
                 maxWidth: MediaQuery.of(context).size.width * 0.70),
             decoration: BoxDecoration(
-              gradient: mine ? AppColors.primaryGradient : null,
+              gradient: mine ? mineGradient : null,
               color: mine ? null : AppColors.surfaceAlt,
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(20),

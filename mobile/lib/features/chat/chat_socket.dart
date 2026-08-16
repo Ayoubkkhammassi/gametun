@@ -40,6 +40,13 @@ class ChatSocket {
     });
   }
 
+  /// Écoute les suppressions de messages temps réel.
+  void onDeleted(void Function(String id) handler) {
+    _socket?.on('message:deleted', (data) {
+      if (data is Map && data['id'] != null) handler(data['id'].toString());
+    });
+  }
+
   void disconnect() {
     _socket?.dispose();
     _socket = null;

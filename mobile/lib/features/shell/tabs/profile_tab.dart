@@ -4,10 +4,14 @@ import '../../../core/providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/gt_button.dart';
 import '../../../core/widgets/gt_scaffold.dart';
+import '../../../core/widgets/gt_avatar.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../chat/conversations_screen.dart';
 import '../../statistics/statistics_screen.dart';
 import '../../premium/premium_screen.dart';
+import '../../premium/admin_premium_screen.dart';
+import '../../premium/admin_users_screen.dart';
+import '../../profiles/profile_edit_screen.dart';
 import '../../settings/security_screen.dart';
 
 /// Profil (réf. mockup) : avatar, pseudo, région, statut Premium, déconnexion.
@@ -44,29 +48,22 @@ class ProfileTab extends ConsumerWidget {
             Center(
               child: Column(
                 children: [
-                  Container(
-                    width: 96,
-                    height: 96,
-                    decoration: BoxDecoration(
-                      gradient: AppColors.primaryGradient,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.4),
-                          blurRadius: 24,
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        (user?.pseudo.isNotEmpty ?? false)
-                            ? user!.pseudo[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 40,
-                          fontWeight: FontWeight.w800,
-                        ),
+                  GestureDetector(
+                    onTap: () => _push(context, const ProfileEditScreen()),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.4),
+                            blurRadius: 24,
+                          ),
+                        ],
+                      ),
+                      child: GtAvatar(
+                        avatarUrl: user?.avatarUrl,
+                        pseudo: user?.pseudo ?? '?',
+                        radius: 48,
                       ),
                     ),
                   ),
@@ -112,6 +109,11 @@ class ProfileTab extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
             _MenuLink(
+              icon: Icons.edit_outlined,
+              label: 'Modifier mon profil (photo, jeux…)',
+              onTap: () => _push(context, const ProfileEditScreen()),
+            ),
+            _MenuLink(
               icon: Icons.chat_bubble_outline,
               label: 'Messages',
               onTap: () => _push(context, const ConversationsScreen()),
@@ -133,6 +135,20 @@ class ProfileTab extends ConsumerWidget {
               color: AppColors.gold,
               onTap: () => _push(context, const PremiumScreen()),
             ),
+            if (user?.role == 'ADMIN') ...[
+              _MenuLink(
+                icon: Icons.admin_panel_settings,
+                label: 'Demandes Premium (Admin)',
+                color: AppColors.cyan,
+                onTap: () => _push(context, const AdminPremiumScreen()),
+              ),
+              _MenuLink(
+                icon: Icons.manage_accounts,
+                label: 'Gérer les comptes (Admin)',
+                color: AppColors.cyan,
+                onTap: () => _push(context, const AdminUsersScreen()),
+              ),
+            ],
             _MenuLink(
               icon: Icons.shield_outlined,
               label: 'Sécurité & confidentialité',

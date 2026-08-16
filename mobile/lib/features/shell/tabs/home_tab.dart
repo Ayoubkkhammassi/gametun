@@ -6,6 +6,10 @@ import '../../../core/widgets/gt_scaffold.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../chat/conversations_screen.dart';
 import '../../notifications/notifications_screen.dart';
+import '../../update/app_update.dart';
+
+// Empêche d'afficher la popup de mise à jour plusieurs fois par session.
+bool _updatePromptShown = false;
 
 /// Accueil (réf. mockup) : salutation, carte héro, menu principal.
 class HomeTab extends ConsumerWidget {
@@ -24,45 +28,75 @@ class HomeTab extends ConsumerWidget {
     final user = ref.watch(authControllerProvider).user;
     final pseudo = user?.pseudo ?? 'joueur';
 
+    // Vérifie s'il existe une mise à jour et propose de la télécharger.
+    ref.listen(appUpdateProvider, (_, next) {
+      next.whenData((info) {
+        if (info != null && !_updatePromptShown) {
+          _updatePromptShown = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) showUpdateDialog(context, info);
+          });
+        }
+      });
+    });
+
     return GtBackground(
       child: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           children: [
+            // En-tête marque GameTun (réf. mockup).
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Salut $pseudo ! 👋',
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text('Prêt à jouer ?',
-                        style: TextStyle(color: AppColors.textSecondary)),
-                  ],
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                    borderRadius: BorderRadius.circular(11),
+                    boxShadow: [
+                      BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.5),
+                          blurRadius: 14),
+                    ],
+                  ),
+                  child: const Icon(Icons.sports_esports,
+                      color: Colors.white, size: 22),
                 ),
-                Row(
-                  children: [
-                    _CircleIcon(
-                      icon: Icons.chat_bubble_outline,
-                      onTap: () => _push(context, const ConversationsScreen()),
-                    ),
-                    const SizedBox(width: 10),
-                    _CircleIcon(
-                      icon: Icons.notifications_none_rounded,
-                      onTap: () => _push(context, const NotificationsScreen()),
-                    ),
-                  ],
+                const SizedBox(width: 10),
+                ShaderMask(
+                  shaderCallback: (b) =>
+                      AppColors.magentaGradient.createShader(b),
+                  child: const Text('GameTun',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800)),
+                ),
+                const Spacer(),
+                _CircleIcon(
+                  icon: Icons.chat_bubble_outline,
+                  onTap: () => _push(context, const ConversationsScreen()),
+                ),
+                const SizedBox(width: 10),
+                _CircleIcon(
+                  icon: Icons.notifications_none_rounded,
+                  onTap: () => _push(context, const NotificationsScreen()),
                 ),
               ],
             ),
+            const SizedBox(height: 18),
+            Text(
+              'Salut $pseudo ! 👋',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text('Prêt à jouer ?',
+                style: TextStyle(color: AppColors.textSecondary)),
             const SizedBox(height: 20),
             GtCard(
               gradient: AppColors.heroGradient,

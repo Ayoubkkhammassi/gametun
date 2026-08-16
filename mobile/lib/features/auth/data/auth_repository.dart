@@ -39,9 +39,25 @@ class AuthRepository {
     return _handleAuthPayload(data);
   }
 
+  /// Vérifie en direct la disponibilité d'un pseudo.
+  Future<({bool available, bool valid})> checkPseudo(String pseudo) async {
+    final data = await _api.get('/auth/check-pseudo', query: {'pseudo': pseudo});
+    final m = data as Map<String, dynamic>;
+    return (
+      available: (m['available'] ?? false) as bool,
+      valid: (m['valid'] ?? false) as bool,
+    );
+  }
+
   Future<UserModel> me() async {
     final data = await _api.get('/users/me');
     return UserModel.fromJson(data as Map<String, dynamic>);
+  }
+
+  /// Connexion via un idToken Google (vérifié par le serveur).
+  Future<UserModel> googleLogin(String idToken) async {
+    final data = await _api.post('/auth/google', body: {'idToken': idToken});
+    return _handleAuthPayload(data);
   }
 
   Future<void> logout() async {

@@ -8,6 +8,7 @@ class Conversation {
   final bool isOnline;
   final String? lastMessage;
   final List<String> memberNames;
+  final String? otherUserId; // id de l'autre joueur (conversation directe)
   final DateTime updatedAt;
 
   const Conversation({
@@ -17,6 +18,7 @@ class Conversation {
     required this.isOnline,
     this.lastMessage,
     this.memberNames = const [],
+    this.otherUserId,
     required this.updatedAt,
   });
 
@@ -41,6 +43,7 @@ class Conversation {
       isOnline: (first?['isOnline'] ?? false) as bool,
       lastMessage: last?['body'] as String?,
       memberNames: names,
+      otherUserId: first?['id'] as String?,
       updatedAt: DateTime.tryParse(j['updatedAt']?.toString() ?? '') ??
           DateTime.now(),
     );
@@ -137,6 +140,11 @@ class ChatRepository {
       'mediaDuration': durationSeconds,
     });
     return ChatMessage.fromJson(data as Map<String, dynamic>);
+  }
+
+  /// Supprime un de mes messages.
+  Future<void> deleteMessage(String messageId) async {
+    await _ref.read(apiClientProvider).delete('/messages/$messageId');
   }
 
   /// Ajoute/retire une réaction emoji sur un message.

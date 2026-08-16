@@ -38,10 +38,29 @@ dependencies:
   audioplayers: ^6.1.0
   path_provider: ^2.1.5
 
+  # Photo de profil (galerie / caméra)
+  image_picker: ^1.1.2
+
+  # Connexion Google
+  google_sign_in: ^6.2.2
+
+  # Mise à jour intégrée (ouvre le lien de téléchargement)
+  url_launcher: ^6.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+# Icône de l'app (logo GameTun)
+flutter_launcher_icons:
+  android: true
+  image_path: "assets/icon/gametun.png"
+  adaptive_icon_background: "#07060D"
+  adaptive_icon_foreground: "assets/icon/gametun.png"
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icon/gametun.png

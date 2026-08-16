@@ -67,6 +67,7 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen> {
                             isOnline: c.isOnline,
                             isGroup: c.isGroup,
                             memberNames: c.memberNames,
+                            otherUserId: c.otherUserId,
                           ),
                         ),
                       ),
