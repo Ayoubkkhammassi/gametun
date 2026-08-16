@@ -76,6 +76,20 @@ export class AuthService {
     return { user: toSelfUser(user), tokens };
   }
 
+  /** Renvoie si un pseudo est disponible + valide (pour la vérif en direct). */
+  async isPseudoAvailable(pseudo: string) {
+    const trimmed = pseudo.trim();
+    const valid = /^[a-zA-Z0-9_-]{3,20}$/.test(trimmed);
+    if (!valid) {
+      return { available: false, valid: false };
+    }
+    const existing = await this.prisma.user.findUnique({
+      where: { pseudo: trimmed },
+      select: { id: true },
+    });
+    return { available: !existing, valid: true };
+  }
+
   // ---- Connexion ---------------------------------------------------------
 
   async login(dto: LoginDto) {

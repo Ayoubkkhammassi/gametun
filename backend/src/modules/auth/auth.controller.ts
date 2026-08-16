@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -20,6 +20,14 @@ export class AuthController {
   @Post('register')
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
+  }
+
+  /** Vérifie en direct si un pseudo est disponible (pour l'inscription). */
+  @Public()
+  @HttpCode(200)
+  @Get('check-pseudo')
+  checkPseudo(@Query('pseudo') pseudo: string) {
+    return this.authService.isPseudoAvailable(pseudo ?? '');
   }
 
   @Public()
