@@ -4,6 +4,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import { GoogleDto } from './dto/google.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import {
   CurrentUser,
@@ -43,6 +44,14 @@ export class AuthController {
   @Post('refresh')
   refresh(@Body() dto: RefreshDto) {
     return this.authService.refresh(dto.refreshToken);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @HttpCode(200)
+  @Post('google')
+  google(@Body() dto: GoogleDto) {
+    return this.authService.googleLogin(dto.idToken);
   }
 
   @HttpCode(200)

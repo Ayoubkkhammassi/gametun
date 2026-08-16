@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
 import { SendMessageDto } from './dto/send-message.dto';
@@ -45,6 +53,16 @@ export class ChatController {
     // Diffusion temps réel aux membres connectés.
     this.gateway.emitNewMessage(id, message);
     return message;
+  }
+
+  @Delete('messages/:id')
+  async deleteMessage(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+  ) {
+    const res = await this.chatService.deleteMessage(user.sub, id);
+    this.gateway.emitDeletedMessage(res.conversationId, res.id);
+    return res;
   }
 
   @Post('messages/:id/react')

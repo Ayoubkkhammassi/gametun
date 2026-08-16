@@ -142,6 +142,20 @@ export class ChatService {
     return message;
   }
 
+  /** Supprime un message (seul l'expéditeur peut supprimer le sien). */
+  async deleteMessage(userId: string, messageId: string) {
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: { id: true, senderId: true, conversationId: true },
+    });
+    if (!message) throw new NotFoundException('Message introuvable');
+    if (message.senderId !== userId) {
+      throw new ForbiddenException('Tu ne peux supprimer que tes messages');
+    }
+    await this.prisma.message.delete({ where: { id: messageId } });
+    return { id: messageId, conversationId: message.conversationId };
+  }
+
   /** Ajoute/retire une réaction emoji sur un message. */
   async react(userId: string, messageId: string, emoji: string) {
     const message = await this.prisma.message.findUnique({

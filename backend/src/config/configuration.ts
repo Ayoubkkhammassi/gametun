@@ -21,6 +21,7 @@ export interface AppConfig {
   };
   minAge: number;
   premiumPriceTnd: number;
+  googleClientId: string;
 }
 
 class ConfigError extends Error {}
@@ -82,5 +83,7 @@ export function loadConfiguration(): AppConfig {
     },
     minAge: toInt(optional('MIN_AGE', '13'), 'MIN_AGE'),
     premiumPriceTnd: Number.parseFloat(optional('PREMIUM_PRICE_TND', '2.99')),
+    // ID client Web Google (public) pour vérifier les tokens Google.
+    googleClientId: optional('GOOGLE_CLIENT_ID', ''),
   };
 }

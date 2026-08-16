@@ -7,6 +7,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
+import { randomBytes } from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { User } from '@prisma/client';
 import { AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -74,6 +76,85 @@ export class AuthService {
 
     const tokens = await this.issueTokens(user);
     return { user: toSelfUser(user), tokens };
+  }
+
+  // ---- Connexion Google --------------------------------------------------
+
+  async googleLogin(idToken: string) {
+    const clientId = this.config.get('googleClientId', { infer: true });
+    if (!clientId) {
+      throw new UnauthorizedException('Connexion Google non configurée');
+    }
+    const client = new OAuth2Client(clientId);
+    let payload: { email?: string; name?: string; picture?: string } | undefined;
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken,
+        audience: clientId,
+      });
+      payload = ticket.getPayload();
+    } catch {
+      throw new UnauthorizedException('Token Google invalide');
+    }
+    if (!payload?.email) {
+      throw new UnauthorizedException('Email Google introuvable');
+    }
+
+    const email = payload.email.toLowerCase();
+    let user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      // Nouvel utilisateur Google : pseudo unique auto + mot de passe aléatoire.
+      const pseudo = await this.generateUniquePseudo(payload.name || email);
+      const passwordHash = await argon2.hash(randomBytes(24).toString('hex'));
+      const birthDate = new Date();
+      birthDate.setFullYear(birthDate.getFullYear() - 18); // défaut
+      user = await this.prisma.user.create({
+        data: {
+          email,
+          pseudo,
+          passwordHash,
+          birthDate,
+          language: 'FR',
+          region: 'Tunisie',
+          avatarUrl: payload.picture,
+          profile: { create: {} },
+          statistics: { create: {} },
+        },
+      });
+    }
+
+    if (user.status === 'BANNED') {
+      throw new ForbiddenException('Ce compte a été banni.');
+    }
+
+    const tokens = await this.issueTokens(user);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { isOnline: true, lastSeenAt: new Date() },
+    });
+    return { user: toSelfUser(user), tokens };
+  }
+
+  /** Génère un pseudo unique à partir d'un nom/email (pour Google). */
+  private async generateUniquePseudo(base: string): Promise<string> {
+    let clean = base
+      .split('@')[0]
+      .replace(/[^a-zA-Z0-9_-]/g, '')
+      .slice(0, 15);
+    if (clean.length < 3) clean = `joueur${clean}`;
+    let candidate = clean;
+    let tries = 0;
+    while (tries < 20) {
+      const exists = await this.prisma.user.findUnique({
+        where: { pseudo: candidate },
+        select: { id: true },
+      });
+      if (!exists) return candidate;
+      candidate = `${clean}${Math.floor(1000 + Math.random() * 9000)}`;
+      tries++;
+    }
+    return `joueur${Date.now().toString().slice(-6)}`;
   }
 
   /** Renvoie si un pseudo est disponible + valide (pour la vérif en direct). */

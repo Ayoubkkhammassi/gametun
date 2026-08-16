@@ -95,6 +95,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`conv:${conversationId}`).emit('message', message);
   }
 
+  /** Diffuse la suppression d'un message aux membres connectés. */
+  emitDeletedMessage(conversationId: string, messageId: string): void {
+    this.server
+      .to(`conv:${conversationId}`)
+      .emit('message:deleted', { id: messageId, conversationId });
+  }
+
   // ---- Statut en ligne ---------------------------------------------------
 
   private async setOnline(userId: string, online: boolean): Promise<void> {
