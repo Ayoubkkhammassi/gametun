@@ -22,6 +22,7 @@ export interface AppConfig {
   minAge: number;
   premiumPriceTnd: number;
   googleClientId: string;
+  d17Number: string;
 }
 
 class ConfigError extends Error {}
@@ -85,5 +86,7 @@ export function loadConfiguration(): AppConfig {
     premiumPriceTnd: Number.parseFloat(optional('PREMIUM_PRICE_TND', '2.99')),
     // ID client Web Google (public) pour vérifier les tokens Google.
     googleClientId: optional('GOOGLE_CLIENT_ID', ''),
+    // Numéro D17 où les joueurs envoient le paiement Premium (manuel).
+    d17Number: optional('D17_NUMBER', '28492755'),
   };
 }

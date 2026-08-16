@@ -17,6 +17,15 @@ export class PremiumService {
   plans() {
     const price = this.config.get('premiumPriceTnd', { infer: true });
     return {
+      // Paiement manuel via D17.
+      payment: {
+        method: 'D17',
+        number: this.config.get('d17Number', { infer: true }),
+        priceTnd: price,
+        instructions:
+          'Envoie le montant via D17 au numéro ci-dessus, puis saisis la ' +
+          'référence du virement. Ton Premium sera activé après validation.',
+      },
       free: {
         name: 'Gratuit',
         features: [
@@ -100,6 +109,77 @@ export class PremiumService {
       body: 'Toutes les fonctionnalités avancées sont débloquées.',
     });
     return sub;
+  }
+
+  // ---- Paiement manuel D17 (demande + validation admin) ------------------
+
+  /** L'utilisateur soumet une preuve de paiement D17. */
+  async createRequest(userId: string, reference: string) {
+    const req = await this.prisma.premiumRequest.create({
+      data: { userId, reference: reference.trim(), method: 'D17' },
+    });
+    // Notifie les admins qu'une demande est en attente.
+    const admins = await this.prisma.user.findMany({
+      where: { role: 'ADMIN' },
+      select: { id: true },
+    });
+    await Promise.all(
+      admins.map((a) =>
+        this.notifications.create({
+          userId: a.id,
+          type: NotificationType.PREMIUM,
+          title: 'Nouvelle demande Premium 💳',
+          body: `Paiement D17 à valider (réf: ${reference.trim()}).`,
+          data: { requestId: req.id },
+        }),
+      ),
+    );
+    return req;
+  }
+
+  /** Dernière demande de l'utilisateur (pour afficher son statut). */
+  async myLatestRequest(userId: string) {
+    return this.prisma.premiumRequest.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** [ADMIN] Liste des demandes en attente. */
+  async listPendingRequests() {
+    const rows = await this.prisma.premiumRequest.findMany({
+      where: { status: 'PENDING' },
+      include: {
+        user: { select: { id: true, pseudo: true, email: true, avatarUrl: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    return rows;
+  }
+
+  /** [ADMIN] Valide une demande → active le Premium de l'utilisateur. */
+  async approveRequest(requestId: string) {
+    const req = await this.prisma.premiumRequest.update({
+      where: { id: requestId },
+      data: { status: 'APPROVED' },
+    });
+    await this.subscribe(req.userId);
+    return { approved: true };
+  }
+
+  /** [ADMIN] Rejette une demande. */
+  async rejectRequest(requestId: string) {
+    const req = await this.prisma.premiumRequest.update({
+      where: { id: requestId },
+      data: { status: 'REJECTED' },
+    });
+    await this.notifications.create({
+      userId: req.userId,
+      type: NotificationType.PREMIUM,
+      title: 'Demande Premium refusée',
+      body: 'Ton paiement n\'a pas pu être vérifié. Contacte le support.',
+    });
+    return { rejected: true };
   }
 
   async cancel(userId: string) {

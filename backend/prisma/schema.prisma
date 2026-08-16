@@ -146,6 +146,7 @@ model User {
   blocksAgainst    BlockedUser[]             @relation("Blocked")
   ratingsGiven     Reputation[]              @relation("Rater")
   ratingsReceived  Reputation[]              @relation("Rated")
+  premiumRequests  PremiumRequest[]
 
   @@index([status])
   @@map("users")
@@ -437,6 +438,28 @@ model Statistics {
 // --------------------------------------------------------------------------
 // PREMIUM & ABONNEMENTS
 // --------------------------------------------------------------------------
+
+enum PremiumRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Demande de passage Premium via paiement manuel (D17).
+/// L'utilisateur envoie l'argent puis soumet la référence ; l'admin valide.
+model PremiumRequest {
+  id        String               @id @default(cuid())
+  userId    String
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  method    String               @default("D17")
+  reference String // référence/preuve du virement saisie par l'utilisateur
+  status    PremiumRequestStatus @default(PENDING)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@index([status])
+  @@map("premium_requests")
+}
 
 model Subscription {
   id        String             @id @default(cuid())

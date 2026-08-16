@@ -34,3 +34,6 @@ services:
       # ID client Web Google (public) pour vérifier les connexions Google.
       - key: GOOGLE_CLIENT_ID
         value: 560455067095-1m461lg873hn29ccfg24m8ga3a74g3aa.apps.googleusercontent.com
+      # Numéro D17 pour les paiements Premium manuels.
+      - key: D17_NUMBER
+        value: "28492755"
