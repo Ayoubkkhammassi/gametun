@@ -32,9 +32,10 @@ export class UpdateProfileDto {
   @Matches(TIME_REGEX, { message: 'availabilityTo doit être au format HH:MM' })
   availabilityTo?: string;
 
+  // Peut être une URL OU une image base64 (data URI) → pas de limite courte.
   @IsOptional()
   @IsString()
-  @MaxLength(120)
+  @MaxLength(3000000)
   avatarUrl?: string;
 
   @IsOptional()
