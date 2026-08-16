@@ -11,8 +11,20 @@ export class SocialController {
   constructor(private readonly socialService: SocialService) {}
 
   @Get('discover')
-  discover(@CurrentUser() user: AuthUser, @Query('limit') limit = '20') {
-    return this.socialService.discover(user.sub, Number(limit));
+  discover(
+    @CurrentUser() user: AuthUser,
+    @Query('limit') limit = '20',
+    @Query('region') region?: string,
+    @Query('level') level?: string,
+    @Query('game') gameSlug?: string,
+    @Query('onlineOnly') onlineOnly?: string,
+  ) {
+    return this.socialService.discover(user.sub, Number(limit), {
+      region: region || undefined,
+      level: level || undefined,
+      gameSlug: gameSlug || undefined,
+      onlineOnly: onlineOnly === 'true' || onlineOnly === '1',
+    });
   }
 
   @HttpCode(200)
@@ -24,5 +36,11 @@ export class SocialController {
   @Get('matches')
   matches(@CurrentUser() user: AuthUser) {
     return this.socialService.listMatches(user.sub);
+  }
+
+  /** Qui m'a liké (identités réservées au Premium). */
+  @Get('liked-me')
+  likedMe(@CurrentUser() user: AuthUser) {
+    return this.socialService.likedMe(user.sub);
   }
 }

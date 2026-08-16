@@ -4,6 +4,8 @@ import '../../core/network/api_exception.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/gt_scaffold.dart';
+import '../../core/widgets/premium_badge.dart';
+import '../auth/application/auth_controller.dart';
 import 'social_repository.dart';
 
 /// Social Match (spec §10) : découverte de joueurs, orientée amitié/gaming.
@@ -20,6 +22,7 @@ class _SocialMatchScreenState extends ConsumerState<SocialMatchScreen> {
   bool _loading = true;
   String? _error;
   bool _acting = false;
+  DiscoverFilters _filters = const DiscoverFilters();
 
   @override
   void initState() {
@@ -33,7 +36,9 @@ class _SocialMatchScreenState extends ConsumerState<SocialMatchScreen> {
       _error = null;
     });
     try {
-      final list = await ref.read(socialRepositoryProvider).discover();
+      final list = await ref
+          .read(socialRepositoryProvider)
+          .discover(filters: _filters.isEmpty ? null : _filters);
       setState(() {
         _profiles = list;
         _index = 0;
@@ -55,18 +60,45 @@ class _SocialMatchScreenState extends ConsumerState<SocialMatchScreen> {
       if (res.matched && mounted) {
         await _showMatch(profile);
       }
+      if (mounted) setState(() => _index++); // avance seulement si accepté
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
+        // 403 = limite de likes gratuits atteinte → incitation Premium.
+        if (e.statusCode == 403) {
+          await showPremiumUpsell(context,
+              title: 'Limite de likes atteinte', message: e.message);
+        } else {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(e.message)));
+        }
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _acting = false;
-          _index++;
-        });
-      }
+      if (mounted) setState(() => _acting = false);
+    }
+  }
+
+  /// Ouvre le panneau de filtres avancés (réservé Premium).
+  Future<void> _openFilters() async {
+    final isPremium = ref.read(authControllerProvider).user?.isPremium ?? false;
+    if (!isPremium) {
+      await showPremiumUpsell(context,
+          title: 'Filtres avancés',
+          message:
+              'Filtre par région, niveau, jeu et joueurs en ligne. Réservé au Premium 💎');
+      return;
+    }
+    final result = await showModalBottomSheet<DiscoverFilters>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _FilterSheet(initial: _filters),
+    );
+    if (result != null) {
+      setState(() => _filters = result);
+      _load();
     }
   }
 
@@ -263,17 +295,46 @@ class _SocialMatchScreenState extends ConsumerState<SocialMatchScreen> {
       child: SafeArea(
         child: Column(
           children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 12),
-              child: Text('SOCIAL MATCH',
-                  style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1)),
+            Padding(
+              padding: const EdgeInsets.only(top: 12, left: 16, right: 8),
+              child: Row(
+                children: [
+                  const SizedBox(width: 40),
+                  const Expanded(
+                    child: Column(
+                      children: [
+                        Text('SOCIAL MATCH',
+                            style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1)),
+                        Text('Découvre des joueurs',
+                            style: TextStyle(
+                                color: AppColors.textSecondary, fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Filtres avancés',
+                    onPressed: _openFilters,
+                    icon: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const Icon(Icons.tune, color: AppColors.textPrimary),
+                        if (!_filters.isEmpty)
+                          const Positioned(
+                            right: -2,
+                            top: -2,
+                            child: CircleAvatar(
+                                radius: 4, backgroundColor: AppColors.gold),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const Text('Découvre des joueurs',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
             Expanded(child: _buildBody()),
           ],
         ),
@@ -368,12 +429,23 @@ class _ProfileCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          Text(
-            '${profile.pseudo}, ${profile.ageGroup}',
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.w800),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  '${profile.pseudo}, ${profile.ageGroup}',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800),
+                ),
+              ),
+              if (profile.isPremium) ...[
+                const SizedBox(width: 6),
+                const PremiumBadge(size: 18),
+              ],
+            ],
           ),
           const SizedBox(height: 6),
           Text('🇹🇳 ${profile.region}  •  ${profile.isOnline ? '🟢 En ligne' : 'Hors ligne'}',
@@ -437,6 +509,170 @@ class _DetailRow extends StatelessWidget {
           Text(value, style: const TextStyle(color: AppColors.textPrimary)),
         ],
       ),
+    );
+  }
+}
+
+/// Panneau de filtres avancés (Premium) : région, niveau, jeu, en ligne.
+class _FilterSheet extends StatefulWidget {
+  final DiscoverFilters initial;
+  const _FilterSheet({required this.initial});
+
+  @override
+  State<_FilterSheet> createState() => _FilterSheetState();
+}
+
+class _FilterSheetState extends State<_FilterSheet> {
+  static const _regions = [
+    'Tunis', 'Sfax', 'Sousse', 'Ariana', 'Ben Arous', 'Nabeul', 'Bizerte',
+    'Gabès', 'Kairouan', 'Gafsa', 'Monastir', 'Médenine',
+  ];
+  static const _levels = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'PRO'];
+  static const _games = {
+    'valorant': 'Valorant',
+    'fifa': 'FC / FIFA',
+    'lol': 'League of Legends',
+    'cod': 'Call of Duty',
+    'fortnite': 'Fortnite',
+    'pubg': 'PUBG',
+    'freefire': 'Free Fire',
+    'minecraft': 'Minecraft',
+  };
+
+  String? _region;
+  String? _level;
+  String? _gameSlug;
+  bool _onlineOnly = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _region = widget.initial.region;
+    _level = widget.initial.level;
+    _gameSlug = widget.initial.gameSlug;
+    _onlineOnly = widget.initial.onlineOnly;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: AppColors.stroke,
+                  borderRadius: BorderRadius.circular(2)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: const [
+              Text('Filtres avancés',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800)),
+              SizedBox(width: 6),
+              PremiumBadge(size: 16),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _label('Région'),
+          _chips(_regions.map((r) => MapEntry(r, r)),
+              selected: _region, onTap: (v) => setState(() => _region = v)),
+          const SizedBox(height: 12),
+          _label('Niveau'),
+          _chips(_levels.map((l) => MapEntry(l, l)),
+              selected: _level, onTap: (v) => setState(() => _level = v)),
+          const SizedBox(height: 12),
+          _label('Jeu'),
+          _chips(_games.entries,
+              selected: _gameSlug, onTap: (v) => setState(() => _gameSlug = v)),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _onlineOnly,
+            onChanged: (v) => setState(() => _onlineOnly = v),
+            activeThumbColor: AppColors.green,
+            title: const Text('En ligne seulement',
+                style: TextStyle(color: AppColors.textPrimary)),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context)
+                      .pop(const DiscoverFilters()),
+                  style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      side: const BorderSide(color: AppColors.stroke)),
+                  child: const Text('Réinitialiser'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).pop(DiscoverFilters(
+                    region: _region,
+                    level: _level,
+                    gameSlug: _gameSlug,
+                    onlineOnly: _onlineOnly,
+                  )),
+                  child: const Text('Appliquer'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _label(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(text,
+            style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600)),
+      );
+
+  Widget _chips(Iterable<MapEntry<String, String>> entries,
+      {required String? selected, required void Function(String?) onTap}) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: entries.map((e) {
+        final sel = selected == e.key;
+        return GestureDetector(
+          onTap: () => onTap(sel ? null : e.key),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: sel ? AppColors.primary : AppColors.surfaceAlt,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                  color: sel ? AppColors.primary : AppColors.stroke),
+            ),
+            child: Text(e.value,
+                style: TextStyle(
+                    color: sel ? Colors.white : AppColors.textPrimary,
+                    fontSize: 13)),
+          ),
+        );
+      }).toList(),
     );
   }
 }

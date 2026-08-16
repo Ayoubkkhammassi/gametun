@@ -1,9 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ConversationType, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ageGroup, computeAge } from '../../common/privacy.util';
 import { SwipeDto } from './dto/swipe.dto';
+
+/** Nombre de likes/jour pour un compte gratuit (illimité en Premium). */
+const FREE_DAILY_LIKES = 15;
+
+/** Filtres de recherche avancés (réservés Premium). */
+export interface DiscoverFilters {
+  region?: string;
+  level?: string;
+  gameSlug?: string;
+  onlineOnly?: boolean;
+}
 
 @Injectable()
 export class SocialService {
@@ -12,11 +23,33 @@ export class SocialService {
     private readonly notifications: NotificationsService,
   ) {}
 
+  /** Renvoie true si le compte a un abonnement Premium actif. */
+  private async isPremium(userId: string): Promise<boolean> {
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { isPremium: true },
+    });
+    return !!u?.isPremium;
+  }
+
   /**
    * Profils à découvrir : actifs, non bloqués, pas encore swipés, hors soi-même.
    * Orienté amitié/gaming (spec §10) — aucun critère physique.
+   * Les filtres avancés sont réservés aux comptes Premium.
    */
-  async discover(userId: string, limit = 20) {
+  async discover(userId: string, limit = 20, filters: DiscoverFilters = {}) {
+    const hasFilters =
+      !!filters.region ||
+      !!filters.level ||
+      !!filters.gameSlug ||
+      filters.onlineOnly === true;
+    if (hasFilters && !(await this.isPremium(userId))) {
+      throw new ForbiddenException({
+        code: 'PREMIUM_REQUIRED',
+        message: 'Les filtres de recherche avancés sont réservés au Premium 💎',
+      });
+    }
+
     const [blocks, actions] = await this.prisma.$transaction([
       this.prisma.blockedUser.findMany({
         where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
@@ -35,8 +68,19 @@ export class SocialService {
     }
     for (const a of actions) excluded.add(a.targetId);
 
+    const where: Prisma.UserWhereInput = {
+      status: 'ACTIVE',
+      id: { notIn: [...excluded] },
+    };
+    if (filters.region) where.region = filters.region;
+    if (filters.onlineOnly) where.isOnline = true;
+    if (filters.level) where.profile = { level: filters.level as never };
+    if (filters.gameSlug) {
+      where.games = { some: { game: { slug: filters.gameSlug } } };
+    }
+
     const users = await this.prisma.user.findMany({
-      where: { status: 'ACTIVE', id: { notIn: [...excluded] } },
+      where,
       include: {
         profile: true,
         games: { include: { game: { select: { slug: true, name: true } } } },
@@ -53,6 +97,7 @@ export class SocialService {
       language: u.language,
       ageGroup: ageGroup(computeAge(u.birthDate)),
       isOnline: u.isOnline,
+      isPremium: u.isPremium,
       level: u.profile?.level ?? 'BEGINNER',
       playStyle: u.profile?.playStyle ?? 'CASUAL',
       bio: u.profile?.bio ?? null,
@@ -61,11 +106,71 @@ export class SocialService {
   }
 
   /**
+   * Qui m'a liké : compte toujours visible, identités seulement en Premium.
+   */
+  async likedMe(userId: string) {
+    const premium = await this.isPremium(userId);
+    const actions = await this.prisma.socialAction.findMany({
+      where: { targetId: userId, type: { in: ['LIKE', 'FAVORITE'] } },
+      include: {
+        actor: {
+          select: {
+            id: true,
+            pseudo: true,
+            avatarUrl: true,
+            region: true,
+            isOnline: true,
+            isPremium: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return {
+      count: actions.length,
+      isPremium: premium,
+      // Sans Premium : on renvoie le nombre mais pas les identités (floutées côté app).
+      users: premium ? actions.map((a) => a.actor) : [],
+    };
+  }
+
+  /**
    * Enregistre un swipe. Si LIKE/FAVORITE réciproque → crée un Match + conversation.
    */
   async swipe(userId: string, dto: SwipeDto) {
     if (userId === dto.targetId) {
       return { matched: false };
+    }
+
+    // Limite quotidienne de likes pour les comptes gratuits.
+    if (dto.type === 'LIKE' || dto.type === 'FAVORITE') {
+      const existing = await this.prisma.socialAction.findUnique({
+        where: {
+          actorId_targetId: { actorId: userId, targetId: dto.targetId },
+        },
+        select: { type: true },
+      });
+      const alreadyLiked = existing && existing.type !== 'PASS';
+      // On ne compte que les NOUVEAUX likes (re-liker quelqu'un ne consomme rien).
+      if (!alreadyLiked && !(await this.isPremium(userId))) {
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
+        const todayCount = await this.prisma.socialAction.count({
+          where: {
+            actorId: userId,
+            type: { in: ['LIKE', 'FAVORITE'] },
+            createdAt: { gte: start },
+          },
+        });
+        if (todayCount >= FREE_DAILY_LIKES) {
+          throw new ForbiddenException({
+            code: 'LIKE_LIMIT',
+            message:
+              `Tu as atteint ta limite de ${FREE_DAILY_LIKES} likes aujourd'hui. ` +
+              'Passe Premium pour des likes illimités 💎',
+          });
+        }
+      }
     }
 
     await this.prisma.socialAction.upsert({

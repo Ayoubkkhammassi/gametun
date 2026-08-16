@@ -11,6 +11,7 @@ import '../../core/network/cloudinary.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/gt_scaffold.dart';
+import '../../core/widgets/premium_badge.dart';
 import '../auth/application/auth_controller.dart';
 import '../multiplayer/multiplayer_game_screen.dart';
 import '../profiles/user_profile_screen.dart';
@@ -42,6 +43,7 @@ class ChatScreen extends ConsumerStatefulWidget {
   final bool isGroup;
   final List<String> memberNames;
   final String? otherUserId;
+  final bool otherIsPremium;
   const ChatScreen({
     super.key,
     required this.conversationId,
@@ -50,6 +52,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.isGroup = false,
     this.memberNames = const [],
     this.otherUserId,
+    this.otherIsPremium = false,
   });
 
   @override
@@ -442,9 +445,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             style: const TextStyle(
                                 fontSize: 16, fontWeight: FontWeight.w700)),
                       ),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.verified,
-                          size: 15, color: AppColors.cyan),
+                      if (widget.otherIsPremium) ...[
+                        const SizedBox(width: 4),
+                        const PremiumBadge(size: 14),
+                      ],
                     ],
                   ),
                   Text(

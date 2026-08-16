@@ -5,6 +5,7 @@ import '../../core/providers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/gt_avatar.dart';
 import '../../core/widgets/gt_scaffold.dart';
+import '../../core/widgets/premium_badge.dart';
 
 /// Profil public d'un joueur (ouvert depuis le chat, une squad, etc.).
 class UserProfileScreen extends ConsumerStatefulWidget {
@@ -81,11 +82,22 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                 online: u['isOnline'] == true,
               ),
               const SizedBox(height: 14),
-              Text((u['pseudo'] ?? '—') as String,
-                  style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Flexible(
+                    child: Text((u['pseudo'] ?? '—') as String,
+                        style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800)),
+                  ),
+                  if (u['isPremium'] == true) ...[
+                    const SizedBox(width: 6),
+                    const PremiumBadge(size: 18),
+                  ],
+                ],
+              ),
               const SizedBox(height: 4),
               Text('🇹🇳 ${u['region'] ?? 'Tunisie'} • ${u['ageGroup'] ?? ''}',
                   style: const TextStyle(color: AppColors.textSecondary)),

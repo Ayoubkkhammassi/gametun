@@ -30,6 +30,7 @@ export class ChatService {
                     avatarUrl: true,
                     isOnline: true,
                     lastSeenAt: true,
+                    isPremium: true,
                   },
                 },
               },

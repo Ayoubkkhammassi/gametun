@@ -7,6 +7,7 @@ import '../../../core/widgets/gt_scaffold.dart';
 import '../../../core/widgets/gt_avatar.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../chat/conversations_screen.dart';
+import '../../social/liked_me_screen.dart';
 import '../../statistics/statistics_screen.dart';
 import '../../premium/premium_screen.dart';
 import '../../premium/admin_premium_screen.dart';
@@ -117,6 +118,12 @@ class ProfileTab extends ConsumerWidget {
               icon: Icons.chat_bubble_outline,
               label: 'Messages',
               onTap: () => _push(context, const ConversationsScreen()),
+            ),
+            _MenuLink(
+              icon: Icons.favorite,
+              label: 'Qui t\'a liké',
+              color: AppColors.green,
+              onTap: () => _push(context, const LikedMeScreen()),
             ),
             _MenuLink(
               icon: Icons.bar_chart,

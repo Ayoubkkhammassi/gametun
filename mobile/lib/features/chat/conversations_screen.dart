@@ -101,6 +101,7 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
                             isGroup: c.isGroup,
                             memberNames: c.memberNames,
                             otherUserId: c.otherUserId,
+                            otherIsPremium: c.otherIsPremium,
                           ),
                         ),
                       ),

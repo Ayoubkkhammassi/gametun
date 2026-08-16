@@ -9,6 +9,7 @@ class Conversation {
   final String? lastMessage;
   final List<String> memberNames;
   final String? otherUserId; // id de l'autre joueur (conversation directe)
+  final bool otherIsPremium; // l'autre joueur est-il Premium ?
   final DateTime updatedAt;
 
   const Conversation({
@@ -19,6 +20,7 @@ class Conversation {
     this.lastMessage,
     this.memberNames = const [],
     this.otherUserId,
+    this.otherIsPremium = false,
     required this.updatedAt,
   });
 
@@ -44,6 +46,7 @@ class Conversation {
       lastMessage: last?['body'] as String?,
       memberNames: names,
       otherUserId: first?['id'] as String?,
+      otherIsPremium: (first?['isPremium'] ?? false) as bool,
       updatedAt: DateTime.tryParse(j['updatedAt']?.toString() ?? '') ??
           DateTime.now(),
     );
