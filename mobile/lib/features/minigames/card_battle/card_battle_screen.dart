@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/gt_scaffold.dart';
+import 'cb_card_art.dart';
 import 'cb_data.dart';
 import 'cb_engine.dart';
 import 'cb_models.dart';
@@ -709,7 +710,6 @@ class _CbBattleState extends State<_CbBattle> {
         width: 118,
         transform: Matrix4.translationValues(0, selected ? -10 : 0, 0),
         decoration: BoxDecoration(
-          gradient: c.element.gradient,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: selected ? AppColors.gold : c.rarity.color,
@@ -721,63 +721,93 @@ class _CbBattleState extends State<_CbBattle> {
                   color: AppColors.gold.withValues(alpha: 0.5), blurRadius: 14),
           ],
         ),
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 22,
-                  height: 22,
-                  alignment: Alignment.center,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Positioned.fill(
+                child: CbCardArt(element: c.element, seed: c.id.hashCode),
+              ),
+              Positioned.fill(
+                child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: affordable ? AppColors.cyan : AppColors.danger,
-                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.15),
+                        Colors.black.withValues(alpha: 0.6),
+                      ],
+                    ),
                   ),
-                  child: Text('$cost',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12)),
                 ),
-                const Spacer(),
-                Icon(c.icon, color: Colors.white, size: 18),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(c.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                    height: 1.05)),
-            const SizedBox(height: 2),
-            Expanded(
-              child: Text(c.text,
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 9)),
-            ),
-            Row(
-              children: [
-                Text(_typeLabel(c.type),
-                    style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w700)),
-                const Spacer(),
-                if (c.type == CbType.creature || c.type == CbType.structure) ...[
-                  if (c.type == CbType.creature)
-                    _statBadge('${c.attack}', AppColors.gold),
-                  const SizedBox(width: 3),
-                  _statBadge('${c.health}', AppColors.danger),
-                ],
-              ],
-            ),
-          ],
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 22,
+                          height: 22,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color:
+                                affordable ? AppColors.cyan : AppColors.danger,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text('$cost',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 12)),
+                        ),
+                        const Spacer(),
+                        Icon(c.icon, color: Colors.white, size: 18),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(c.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            height: 1.05)),
+                    const SizedBox(height: 2),
+                    Expanded(
+                      child: Text(c.text,
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              const TextStyle(color: Colors.white, fontSize: 9)),
+                    ),
+                    Row(
+                      children: [
+                        Text(_typeLabel(c.type),
+                            style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 8,
+                                fontWeight: FontWeight.w700)),
+                        const Spacer(),
+                        if (c.type == CbType.creature ||
+                            c.type == CbType.structure) ...[
+                          if (c.type == CbType.creature)
+                            _statBadge('${c.attack}', AppColors.gold),
+                          const SizedBox(width: 3),
+                          _statBadge('${c.health}', AppColors.danger),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

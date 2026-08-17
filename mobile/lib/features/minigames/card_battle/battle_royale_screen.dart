@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/gt_scaffold.dart';
+import 'cb_card_art.dart';
 import 'cb_data.dart';
 import 'cb_models.dart';
 
@@ -715,49 +716,78 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
         width: 112,
         transform: Matrix4.translationValues(0, selected ? -10 : 0, 0),
         decoration: BoxDecoration(
-          gradient: c.element.gradient,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: selected ? AppColors.gold : c.rarity.color,
             width: selected ? 2.5 : 1.5,
           ),
         ),
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 22,
-                  height: 22,
-                  alignment: Alignment.center,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Illustration procédurale (fond).
+              Positioned.fill(
+                child: CbCardArt(element: c.element, seed: c.id.hashCode),
+              ),
+              // Voile pour la lisibilité du texte.
+              Positioned.fill(
+                child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: affordable ? AppColors.cyan : AppColors.danger,
-                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.15),
+                        Colors.black.withValues(alpha: 0.55),
+                      ],
+                    ),
                   ),
-                  child: Text('${c.cost}',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 12)),
                 ),
-                const Spacer(),
-                Icon(c.icon, color: Colors.white, size: 18),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(c.name,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                    height: 1.05)),
-            const Spacer(),
-            _kindBadge(k, c),
-          ],
+              ),
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 22,
+                          height: 22,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color:
+                                affordable ? AppColors.cyan : AppColors.danger,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text('${c.cost}',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 12)),
+                        ),
+                        const Spacer(),
+                        Icon(c.icon, color: Colors.white, size: 18),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(c.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            height: 1.05)),
+                    const Spacer(),
+                    _kindBadge(k, c),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
