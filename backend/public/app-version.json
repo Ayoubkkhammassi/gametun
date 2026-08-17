@@ -1,6 +1,6 @@
 {
-  "versionCode": 15,
-  "versionName": "1.1.5",
-  "message": "Combat plus spectaculaire 💥 : projectiles à traînée, explosions de particules et flash d'impact !",
+  "versionCode": 16,
+  "versionName": "1.1.6",
+  "message": "Animations d'attaque image par image 🎬 : chaque élément déclenche sa séquence VFX !",
   "mandatory": false
 }

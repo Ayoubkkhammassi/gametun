@@ -47,6 +47,9 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
   late final AnimationController _shakeCtrl;
   late final AnimationController _burstCtrl; // explosion d'impact
   late final AnimationController _flashCtrl; // flash d'écran
+  late final AnimationController _animCtrl; // sprite d'attaque (frames)
+  String? _animEl; // élément de l'animation en cours
+  Offset? _animAt; // position du sprite
   double _arena = 0;
   Offset? _projFrom, _projTo;
   Color _projColor = AppColors.danger;
@@ -73,6 +76,15 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
     _flashCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 200))
       ..addListener(() => setState(() {}));
+    _animCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 520))
+      ..addListener(() => setState(() {}));
+  }
+
+  void _playAnim(CbElement el, Offset at) {
+    _animEl = el.name;
+    _animAt = at;
+    _animCtrl.forward(from: 0);
   }
 
   @override
@@ -81,6 +93,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
     _shakeCtrl.dispose();
     _burstCtrl.dispose();
     _flashCtrl.dispose();
+    _animCtrl.dispose();
     _sfx.dispose();
     super.dispose();
   }
@@ -207,6 +220,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
     switch (k) {
       case _BrKind.attack:
       case _BrKind.stun:
+        if (_arena > 0) _playAnim(src.element, _posOf(src.id));
         await _projectile(src.id, target.id,
             k == _BrKind.stun ? AppColors.cyan : src.element.color);
         _resolve(src, c, target);
@@ -215,7 +229,10 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
       case _BrKind.aoe:
         _sfx.play('hit');
         HapticFeedback.heavyImpact();
-        if (_arena > 0) _spawnBurst(Offset(_arena / 2, _arena / 2), AppColors.magenta);
+        if (_arena > 0) {
+          _playAnim(src.element, Offset(_arena / 2, _arena / 2));
+          _spawnBurst(Offset(_arena / 2, _arena / 2), AppColors.magenta);
+        }
         await _shake();
         _resolve(src, c, src);
         for (final p in _players) {
@@ -224,6 +241,8 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
         break;
       case _BrKind.shield:
       case _BrKind.heal:
+        if (_arena > 0) _playAnim(src.element, _posOf(src.id));
+        await _animCtrl.forward(from: 0);
         _resolve(src, c, src);
         _hit(src.id);
         break;
@@ -611,6 +630,9 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
                   // Projectile.
                   if (_projFrom != null && _projTo != null)
                     ..._buildProjectile(),
+                  // Sprite d'attaque (frames de l'élément).
+                  if (_animEl != null && _animCtrl.isAnimating)
+                    _buildAnimSprite(s),
                   // Explosion de particules à l'impact.
                   if (_burstAt != null && _burstCtrl.isAnimating)
                     ..._buildBurst(),
@@ -672,6 +694,33 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
       ),
     ));
     return widgets;
+  }
+
+  Widget _buildAnimSprite(double arenaSize) {
+    final frame = (_animCtrl.value * 6).floor().clamp(0, 5);
+    final size = arenaSize * 0.42;
+    final at = _animAt!;
+    // Léger fondu sur la dernière frame.
+    final opacity = _animCtrl.value > 0.85
+        ? (1 - _animCtrl.value) / 0.15
+        : 1.0;
+    return Positioned(
+      left: at.dx - size / 2,
+      top: at.dy - size / 2,
+      width: size,
+      height: size,
+      child: IgnorePointer(
+        child: Opacity(
+          opacity: opacity.clamp(0.0, 1.0),
+          child: Image.asset(
+            'assets/anim/${_animEl}_$frame.png',
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+          ),
+        ),
+      ),
+    );
   }
 
   List<Widget> _buildBurst() {
