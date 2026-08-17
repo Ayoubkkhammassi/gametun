@@ -2,6 +2,62 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'cb_models.dart';
 
+/// Cartes disposant d'une vraie illustration (`assets/cards/{id}.jpg`).
+const Set<String> kCardsWithArt = {
+  'recrue_braise', 'boule_de_feu', 'tour_de_garde', 'amulette_braise',
+  'hero_nerek', 'vague_deferlante', 'sanctuaire_aquatique', 'marqueur',
+  'guerriere_flots', 'druide_verdant', 'racines_etouffantes', 'racine',
+  'eclaireur_orage', 'eclair_chaine', 'pylone_orageux', 'coeur_tonnerre',
+  'eclat_orage', 'abyssal_corrompu', 'paladin_lumineux', 'bastion_lumineux',
+};
+
+/// Héros disposant d'un portrait (`assets/cards/hero_{id}.jpg`).
+const Set<String> kHeroesWithArt = {
+  'kaelyn', 'nerek', 'lysara', 'zayden', 'morvan', 'orion',
+};
+
+String cardArtPath(String id) => 'assets/cards/$id.jpg';
+String heroArtPath(String heroId) => 'assets/cards/hero_$heroId.jpg';
+
+/// Illustration d'une carte : image réelle si disponible, sinon art procédural.
+class CardArt extends StatelessWidget {
+  final CbCard card;
+  const CardArt({super.key, required this.card});
+
+  @override
+  Widget build(BuildContext context) {
+    if (kCardsWithArt.contains(card.id)) {
+      return Image.asset(
+        cardArtPath(card.id),
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) =>
+            CbCardArt(element: card.element, seed: card.id.hashCode),
+      );
+    }
+    return CbCardArt(element: card.element, seed: card.id.hashCode);
+  }
+}
+
+/// Portrait d'un héros : image réelle si disponible, sinon art procédural.
+class HeroArt extends StatelessWidget {
+  final CbHero hero;
+  const HeroArt({super.key, required this.hero});
+
+  @override
+  Widget build(BuildContext context) {
+    if (kHeroesWithArt.contains(hero.id)) {
+      return Image.asset(
+        heroArtPath(hero.id),
+        fit: BoxFit.cover,
+        alignment: Alignment.topCenter,
+        errorBuilder: (_, _, _) =>
+            CbCardArt(element: hero.element, seed: hero.id.hashCode),
+      );
+    }
+    return CbCardArt(element: hero.element, seed: hero.id.hashCode);
+  }
+}
+
 /// Illustration procédurale d'une carte, par élément.
 /// Scène stylée dessinée en code (gratuit, hors-ligne, original).
 /// [seed] varie le motif d'une carte à l'autre.

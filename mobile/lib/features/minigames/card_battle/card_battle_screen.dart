@@ -99,7 +99,6 @@ class _CardBattleScreenState extends State<CardBattleScreen> {
       onTap: () => _startGame(h),
       child: Container(
         decoration: BoxDecoration(
-          gradient: h.element.gradient,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: h.element.color, width: 1.5),
           boxShadow: [
@@ -107,32 +106,59 @@ class _CardBattleScreenState extends State<CardBattleScreen> {
                 color: h.element.color.withValues(alpha: 0.35), blurRadius: 16),
           ],
         ),
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(h.icon, color: Colors.white, size: 22),
-                const Spacer(),
-                Text('${h.element.emoji} ${h.hp}❤',
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.w700)),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(h.name.toUpperCase(),
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900)),
-            Text(h.faction,
-                style: const TextStyle(color: Colors.white70, fontSize: 11)),
-            const SizedBox(height: 8),
-            _tag('PASSIF', h.passiveText),
-            const SizedBox(height: 6),
-            _tag('ACTIF (${h.activeCost})', h.activeText),
-          ],
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(17),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Positioned.fill(child: HeroArt(hero: h)),
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.15),
+                        Colors.black.withValues(alpha: 0.82),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(h.icon, color: Colors.white, size: 22),
+                        const Spacer(),
+                        Text('${h.element.emoji} ${h.hp}❤',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                    const Spacer(),
+                    Text(h.name.toUpperCase(),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900)),
+                    Text(h.faction,
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 11)),
+                    const SizedBox(height: 8),
+                    _tag('PASSIF', h.passiveText),
+                    const SizedBox(height: 6),
+                    _tag('ACTIF (${h.activeCost})', h.activeText),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -726,9 +752,7 @@ class _CbBattleState extends State<_CbBattle> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Positioned.fill(
-                child: CbCardArt(element: c.element, seed: c.id.hashCode),
-              ),
+              Positioned.fill(child: CardArt(card: c)),
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(

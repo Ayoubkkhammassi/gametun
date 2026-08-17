@@ -66,13 +66,19 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
     super.dispose();
   }
 
+  static const List<String> _heroIds = [
+    'kaelyn', 'nerek', 'lysara', 'zayden', 'morvan', 'orion',
+  ];
+
   void _start() {
     final names = [..._botNames]..shuffle(_rng);
+    final heroes = [..._heroIds]..shuffle(_rng);
     final elements = [...CbElement.values]..shuffle(_rng);
     _players = [
-      _BrPlayer(0, 'Toi', CbElement.lumiere, isHuman: true, hp: _startHp),
+      _BrPlayer(0, 'Toi', elements[0], heroId: heroes[0], isHuman: true, hp: _startHp),
       for (var i = 0; i < 5; i++)
-        _BrPlayer(i + 1, names[i], elements[i % elements.length], hp: _startHp),
+        _BrPlayer(i + 1, names[i], elements[(i + 1) % elements.length],
+            heroId: heroes[(i + 1) % heroes.length], hp: _startHp),
     ];
     _deck = _buildDeck();
     _hand.clear();
@@ -636,8 +642,20 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
                               blurRadius: 16),
                       ],
                     ),
-                    child: Icon(p.alive ? Icons.person : Icons.close,
-                        color: Colors.white, size: 24),
+                    child: ClipOval(
+                      child: p.alive
+                          ? Image.asset(
+                              heroArtPath(p.heroId),
+                              fit: BoxFit.cover,
+                              alignment: Alignment.topCenter,
+                              errorBuilder: (_, _, _) => const Icon(
+                                  Icons.person,
+                                  color: Colors.white,
+                                  size: 24),
+                            )
+                          : const Icon(Icons.close,
+                              color: Colors.white, size: 24),
+                    ),
                   ),
                   if (_floating[p.id] != null)
                     Positioned(
@@ -728,9 +746,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
             fit: StackFit.expand,
             children: [
               // Illustration procédurale (fond).
-              Positioned.fill(
-                child: CbCardArt(element: c.element, seed: c.id.hashCode),
-              ),
+              Positioned.fill(child: CardArt(card: c)),
               // Voile pour la lisibilité du texte.
               Positioned.fill(
                 child: DecoratedBox(
@@ -830,6 +846,7 @@ class _BrPlayer {
   final int id;
   final String name;
   final CbElement element;
+  final String heroId;
   final bool isHuman;
   int hp;
   int shield = 0;
@@ -837,5 +854,5 @@ class _BrPlayer {
   bool stunned = false;
 
   _BrPlayer(this.id, this.name, this.element,
-      {this.isHuman = false, required this.hp});
+      {required this.heroId, this.isHuman = false, required this.hp});
 }
