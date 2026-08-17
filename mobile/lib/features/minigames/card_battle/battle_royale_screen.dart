@@ -45,9 +45,15 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
   final _sfx = CbSfx();
   late final AnimationController _projCtrl;
   late final AnimationController _shakeCtrl;
+  late final AnimationController _burstCtrl; // explosion d'impact
+  late final AnimationController _flashCtrl; // flash d'écran
   double _arena = 0;
   Offset? _projFrom, _projTo;
   Color _projColor = AppColors.danger;
+  Offset? _burstAt;
+  Color _burstColor = AppColors.danger;
+  final List<double> _burstAngles =
+      List.generate(12, (i) => i * pi / 6 + 0.2);
 
   _BrPlayer get _me => _players.firstWhere((p) => p.isHuman);
   List<_BrPlayer> get _alive => _players.where((p) => p.alive).toList();
@@ -61,14 +67,29 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
     _shakeCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 240))
       ..addListener(() => setState(() {}));
+    _burstCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 500))
+      ..addListener(() => setState(() {}));
+    _flashCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 200))
+      ..addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
     _projCtrl.dispose();
     _shakeCtrl.dispose();
+    _burstCtrl.dispose();
+    _flashCtrl.dispose();
     _sfx.dispose();
     super.dispose();
+  }
+
+  void _spawnBurst(Offset at, Color c) {
+    _burstAt = at;
+    _burstColor = c;
+    _burstCtrl.forward(from: 0);
+    _flashCtrl.forward(from: 0);
   }
 
   static const List<String> _heroIds = [
@@ -194,6 +215,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
       case _BrKind.aoe:
         _sfx.play('hit');
         HapticFeedback.heavyImpact();
+        if (_arena > 0) _spawnBurst(Offset(_arena / 2, _arena / 2), AppColors.magenta);
         await _shake();
         _resolve(src, c, src);
         for (final p in _players) {
@@ -273,12 +295,14 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
     _projFrom = _posOf(fromPid);
     _projTo = _posOf(toPid);
     _projColor = color;
+    final impact = _projTo!;
     _projCtrl.reset();
     await _projCtrl.forward();
     _projFrom = null;
     _projTo = null;
     _sfx.play('hit');
     HapticFeedback.mediumImpact();
+    _spawnBurst(impact, color);
     await _shake();
   }
 
@@ -586,7 +610,20 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
                     ),
                   // Projectile.
                   if (_projFrom != null && _projTo != null)
-                    _buildProjectile(),
+                    ..._buildProjectile(),
+                  // Explosion de particules à l'impact.
+                  if (_burstAt != null && _burstCtrl.isAnimating)
+                    ..._buildBurst(),
+                  // Flash d'écran.
+                  if (_flashCtrl.isAnimating)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Container(
+                          color: _burstColor.withValues(
+                              alpha: (1 - _flashCtrl.value) * 0.22),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -596,24 +633,92 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
     );
   }
 
-  Widget _buildProjectile() {
-    final t = _projCtrl.value;
-    final pos = Offset.lerp(_projFrom!, _projTo!, Curves.easeIn.transform(t))!;
-    return Positioned(
-      left: pos.dx - 10,
-      top: pos.dy - 10,
+  List<Widget> _buildProjectile() {
+    final tt = Curves.easeIn.transform(_projCtrl.value);
+    final widgets = <Widget>[];
+    // Traînée : quelques points fantômes derrière la tête.
+    for (var k = 4; k >= 1; k--) {
+      final tk = (tt - k * 0.05).clamp(0.0, 1.0);
+      final pos = Offset.lerp(_projFrom!, _projTo!, tk)!;
+      final sz = 14.0 - k * 2;
+      widgets.add(Positioned(
+        left: pos.dx - sz / 2,
+        top: pos.dy - sz / 2,
+        child: Container(
+          width: sz,
+          height: sz,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _projColor.withValues(alpha: 0.18 * (5 - k)),
+          ),
+        ),
+      ));
+    }
+    // Tête lumineuse.
+    final head = Offset.lerp(_projFrom!, _projTo!, tt)!;
+    widgets.add(Positioned(
+      left: head.dx - 11,
+      top: head.dy - 11,
       child: Container(
-        width: 20,
-        height: 20,
+        width: 22,
+        height: 22,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: _projColor,
+          color: Colors.white,
           boxShadow: [
-            BoxShadow(color: _projColor, blurRadius: 14, spreadRadius: 2),
+            BoxShadow(color: _projColor, blurRadius: 18, spreadRadius: 4),
           ],
         ),
       ),
-    );
+    ));
+    return widgets;
+  }
+
+  List<Widget> _buildBurst() {
+    final t = _burstCtrl.value;
+    final at = _burstAt!;
+    final radius = 4 + t * 46;
+    final widgets = <Widget>[
+      // Anneau d'onde de choc.
+      Positioned(
+        left: at.dx - radius,
+        top: at.dy - radius,
+        child: IgnorePointer(
+          child: Container(
+            width: radius * 2,
+            height: radius * 2,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: _burstColor.withValues(alpha: (1 - t) * 0.9),
+                width: 3,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ];
+    // Éclats de particules.
+    for (final a in _burstAngles) {
+      final d = t * (30 + (a * 3 % 14));
+      final p = at + Offset(cos(a) * d, sin(a) * d);
+      final sz = (1 - t) * 6 + 1;
+      widgets.add(Positioned(
+        left: p.dx - sz / 2,
+        top: p.dy - sz / 2,
+        child: IgnorePointer(
+          child: Container(
+            width: sz,
+            height: sz,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _burstColor.withValues(alpha: 1 - t),
+            ),
+          ),
+        ),
+      ));
+    }
+    return widgets;
   }
 
   Widget _playerNode(_BrPlayer p) {
@@ -682,17 +787,27 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
                   ),
                   if (_floating[p.id] != null)
                     Positioned(
-                      top: -18,
-                      child: Text(_floating[p.id]!,
-                          style: TextStyle(
-                              color: _floating[p.id]!.startsWith('-')
-                                  ? AppColors.danger
-                                  : AppColors.green,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                              shadows: const [
-                                Shadow(color: Colors.black, blurRadius: 4)
-                              ])),
+                      top: -20,
+                      child: TweenAnimationBuilder<double>(
+                        key: ValueKey('${p.id}-${_floating[p.id]}'),
+                        tween: Tween(begin: 0, end: 1),
+                        duration: const Duration(milliseconds: 320),
+                        curve: Curves.easeOut,
+                        builder: (_, v, child) => Transform.translate(
+                          offset: Offset(0, -v * 8),
+                          child: Transform.scale(scale: 1.7 - v * 0.7, child: child),
+                        ),
+                        child: Text(_floating[p.id]!,
+                            style: TextStyle(
+                                color: _floating[p.id]!.startsWith('-')
+                                    ? AppColors.danger
+                                    : AppColors.green,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                shadows: const [
+                                  Shadow(color: Colors.black, blurRadius: 4)
+                                ])),
+                      ),
                     ),
                 ],
               ),
