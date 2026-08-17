@@ -18,7 +18,7 @@ class Env {
   /// Numéro de version de CETTE build (à incrémenter à chaque nouvel APK).
   /// Le serveur renvoie la dernière version ; si elle est > à celle-ci,
   /// l'app propose la mise à jour.
-  static const int appVersionCode = 17;
+  static const int appVersionCode = 18;
 
   /// ID client Web Google (public) — pour obtenir un idToken vérifiable serveur.
   static const String googleServerClientId =

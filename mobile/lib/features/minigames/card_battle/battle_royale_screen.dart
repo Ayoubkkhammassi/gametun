@@ -48,6 +48,8 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
   late final AnimationController _burstCtrl; // explosion d'impact
   late final AnimationController _flashCtrl; // flash d'écran
   late final AnimationController _animCtrl; // sprite d'attaque (frames)
+  late final AnimationController _castCtrl; // carte jouée (révélation)
+  CbCard? _castCard; // carte affichée en grand au centre
   String? _animEl; // élément de l'animation en cours
   Offset? _animAt; // position du sprite
   double _arena = 0;
@@ -79,6 +81,9 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
     _animCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 950))
       ..addListener(() => setState(() {}));
+    _castCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 700))
+      ..addListener(() => setState(() {}));
   }
 
   void _playAnim(CbElement el, Offset at) {
@@ -94,6 +99,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
     _burstCtrl.dispose();
     _flashCtrl.dispose();
     _animCtrl.dispose();
+    _castCtrl.dispose();
     _sfx.dispose();
     super.dispose();
   }
@@ -216,6 +222,13 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
 
   Future<void> _animateAndResolve(
       _BrPlayer src, CbCard c, _BrPlayer target) async {
+    // 1) La carte jouée s'affiche en grand au centre.
+    _sfx.play('tap');
+    _castCard = c;
+    await _castCtrl.forward(from: 0);
+    _castCard = null;
+    if (mounted) setState(() {});
+    // 2) Puis l'animation d'attaque + la résolution.
     final k = _kind(c);
     switch (k) {
       case _BrKind.attack:
@@ -497,7 +510,122 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
       ),
       extendBodyBehindAppBar: true,
       body: GtBackground(
-        child: SafeArea(child: _started ? _buildGame() : _buildIntro()),
+        child: SafeArea(
+          child: Stack(
+            children: [
+              _started ? _buildGame() : _buildIntro(),
+              if (_castCard != null) _buildCastOverlay(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Carte jouée affichée en grand au centre (révélation animée).
+  Widget _buildCastOverlay() {
+    final t = _castCtrl.value;
+    // Apparition (0-0.22) avec léger dépassement, puis maintien.
+    final double scale;
+    if (t < 0.22) {
+      scale = 0.6 + (1.12 - 0.6) * (t / 0.22);
+    } else if (t < 0.34) {
+      scale = 1.12 - (1.12 - 1.0) * ((t - 0.22) / 0.12);
+    } else {
+      scale = 1.0;
+    }
+    final opacity = (t / 0.15).clamp(0.0, 1.0) *
+        (t > 0.88 ? ((1 - t) / 0.12).clamp(0.0, 1.0) : 1.0);
+    final c = _castCard!;
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Container(
+          color: Colors.black.withValues(alpha: 0.45 * opacity),
+          alignment: Alignment.center,
+          child: Opacity(
+            opacity: opacity,
+            child: Transform.scale(
+              scale: scale,
+              child: _bigCard(c),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _bigCard(CbCard c) {
+    final k = _kind(c);
+    return Container(
+      width: 210,
+      height: 290,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: c.rarity.color, width: 3),
+        boxShadow: [
+          BoxShadow(
+              color: c.element.color.withValues(alpha: 0.7),
+              blurRadius: 30,
+              spreadRadius: 4),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(17),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(child: CardArt(card: c)),
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.1),
+                      Colors.black.withValues(alpha: 0.7),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 30,
+                        height: 30,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                            color: AppColors.cyan, shape: BoxShape.circle),
+                        child: Text('${c.cost}',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15)),
+                      ),
+                      const Spacer(),
+                      Icon(c.icon, color: Colors.white, size: 26),
+                    ],
+                  ),
+                  const Spacer(),
+                  Text(c.name,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          height: 1.05)),
+                  const SizedBox(height: 6),
+                  _kindBadge(k, c),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
