@@ -1,6 +1,6 @@
 {
-  "versionCode": 16,
-  "versionName": "1.1.6",
-  "message": "Animations d'attaque image par image 🎬 : chaque élément déclenche sa séquence VFX !",
+  "versionCode": 17,
+  "versionName": "1.1.7",
+  "message": "Animations plus claires 🎬 : VFX plus lumineux, plus grands, plus lents et sur la cible !",
   "mandatory": false
 }

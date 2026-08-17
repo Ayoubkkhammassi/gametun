@@ -77,7 +77,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
         vsync: this, duration: const Duration(milliseconds: 200))
       ..addListener(() => setState(() {}));
     _animCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 520))
+        vsync: this, duration: const Duration(milliseconds: 950))
       ..addListener(() => setState(() {}));
   }
 
@@ -220,7 +220,8 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
     switch (k) {
       case _BrKind.attack:
       case _BrKind.stun:
-        if (_arena > 0) _playAnim(src.element, _posOf(src.id));
+        // Animation sur la CIBLE (bien visible), pendant le tir.
+        if (_arena > 0) _playAnim(src.element, _posOf(target.id));
         await _projectile(src.id, target.id,
             k == _BrKind.stun ? AppColors.cyan : src.element.color);
         _resolve(src, c, target);
@@ -698,12 +699,11 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
 
   Widget _buildAnimSprite(double arenaSize) {
     final frame = (_animCtrl.value * 6).floor().clamp(0, 5);
-    final size = arenaSize * 0.42;
+    final size = arenaSize * 0.62;
     final at = _animAt!;
-    // Léger fondu sur la dernière frame.
-    final opacity = _animCtrl.value > 0.85
-        ? (1 - _animCtrl.value) / 0.15
-        : 1.0;
+    // Fondu seulement sur les 12% finaux.
+    final opacity =
+        _animCtrl.value > 0.88 ? (1 - _animCtrl.value) / 0.12 : 1.0;
     return Positioned(
       left: at.dx - size / 2,
       top: at.dy - size / 2,
