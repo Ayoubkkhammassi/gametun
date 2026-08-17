@@ -6,6 +6,7 @@ import 'memory_screen.dart';
 import 'quiz_screen.dart';
 import 'rps_screen.dart';
 import 'reaction_screen.dart';
+import 'card_battle/card_battle_screen.dart';
 
 /// Onglet/écran PLAY (spec §12) : liste des mini-jeux.
 class PlayScreen extends StatelessWidget {
@@ -14,6 +15,10 @@ class PlayScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final games = <_MiniGame>[
+      _MiniGame('GameTun TCG ⭐', 'Bataille de cartes vs IA — 6 héros',
+          Icons.style,
+          const LinearGradient(colors: [Color(0xFFA855F7), Color(0xFFEF4444)]),
+          () => const CardBattleScreen()),
       _MiniGame('Tic-Tac-Toe 3D', 'Solo ou à 2 avec un ami', Icons.grid_3x3,
           AppColors.primaryGradient, () => const TicTacToeScreen()),
       _MiniGame('Jeu de Mémoire', 'Retrouve les paires', Icons.style,
