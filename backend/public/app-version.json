@@ -1,6 +1,6 @@
 {
-  "versionCode": 10,
-  "versionName": "1.1.0",
-  "message": "Nouveau mode 👑 Battle Royale de Cartes : 6 joueurs, dernier survivant gagne !",
+  "versionCode": 11,
+  "versionName": "1.1.1",
+  "message": "Battle Royale 👑 : arène circulaire + projectiles, impacts et tremblement d'écran !",
   "mandatory": false
 }

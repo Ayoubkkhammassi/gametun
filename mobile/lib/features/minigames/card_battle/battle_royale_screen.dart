@@ -6,8 +6,8 @@ import '../../../core/widgets/gt_scaffold.dart';
 import 'cb_data.dart';
 import 'cb_models.dart';
 
-/// GameTun Battle Royale — jeu de cartes en arène : 6 joueurs, chacun avec des
-/// PV, jouent des cartes pour s'attaquer. Dernier survivant gagne.
+/// GameTun Battle Royale — jeu de cartes en arène circulaire : 6 joueurs,
+/// chacun avec des PV, jouent des cartes pour s'attaquer. Dernier survivant gagne.
 class BattleRoyaleScreen extends StatefulWidget {
   const BattleRoyaleScreen({super.key});
 
@@ -15,7 +15,8 @@ class BattleRoyaleScreen extends StatefulWidget {
   State<BattleRoyaleScreen> createState() => _BattleRoyaleScreenState();
 }
 
-class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
+class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
+    with TickerProviderStateMixin {
   static const int _startHp = 800;
   static const int _handSize = 6;
   static const List<String> _botNames = [
@@ -30,13 +31,39 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
   int _energy = 3;
   int _round = 1;
   int? _selectedCard;
-  bool _busy = false; // tour des IA en cours
+  bool _busy = false;
   bool _started = false;
   String? _turnLabel;
-  final Map<int, String> _floating = {}; // pid -> texte flottant (dégâts/soin)
+  final Map<int, String> _floating = {};
+  final Set<int> _pulsing = {}; // nœuds en train d'encaisser un coup
+
+  // Animations.
+  late final AnimationController _projCtrl;
+  late final AnimationController _shakeCtrl;
+  double _arena = 0;
+  Offset? _projFrom, _projTo;
+  Color _projColor = AppColors.danger;
 
   _BrPlayer get _me => _players.firstWhere((p) => p.isHuman);
   List<_BrPlayer> get _alive => _players.where((p) => p.alive).toList();
+
+  @override
+  void initState() {
+    super.initState();
+    _projCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 360))
+      ..addListener(() => setState(() {}));
+    _shakeCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 240))
+      ..addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _projCtrl.dispose();
+    _shakeCtrl.dispose();
+    super.dispose();
+  }
 
   void _start() {
     final names = [..._botNames]..shuffle(_rng);
@@ -60,7 +87,6 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
   }
 
   List<CbCard> _buildDeck() {
-    // Pool = toutes les cartes jouables en BR (créatures + sorts), x3, mélangé.
     final pool = CbData.cards
         .where((c) => c.type == CbType.creature || c.type == CbType.spell)
         .toList();
@@ -77,7 +103,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
     return _deck.removeLast();
   }
 
-  // ---- Sémantique d'une carte en Battle Royale ---------------------------
+  // ---- Sémantique d'une carte --------------------------------------------
 
   _BrKind _kind(CbCard c) {
     if (c.type == CbType.spell) {
@@ -85,7 +111,6 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
       if (c.spellFx == SpellFx.freezeOne) return _BrKind.stun;
       return _BrKind.attack;
     }
-    // Créatures : Bouclier -> défense, sinon attaque.
     if (c.keywords.contains(Kw.shield)) return _BrKind.shield;
     if (c.keywords.contains(Kw.healHeroOnAttack) ||
         c.keywords.contains(Kw.healAlliesEot)) {
@@ -96,7 +121,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
 
   int _power(CbCard c) {
     final base = c.attack > 0 ? c.attack : c.spellValue;
-    return base * 10 * 5; // ex : 4 -> 200
+    return base * 50;
   }
 
   bool _needsTarget(CbCard c) {
@@ -104,7 +129,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
     return k == _BrKind.attack || k == _BrKind.stun;
   }
 
-  // ---- Actions du joueur -------------------------------------------------
+  // ---- Interactions ------------------------------------------------------
 
   void _tapCard(int i) {
     if (_busy) return;
@@ -116,7 +141,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
     if (_needsTarget(c)) {
       setState(() => _selectedCard = (_selectedCard == i) ? null : i);
     } else {
-      _playCard(i, _me); // cartes sur soi (bouclier/soin) ou AoE
+      _playCard(i, _me);
     }
   }
 
@@ -126,18 +151,46 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
     _playCard(_selectedCard!, target);
   }
 
-  void _playCard(int handIndex, _BrPlayer target) {
+  Future<void> _playCard(int handIndex, _BrPlayer target) async {
     final c = _hand[handIndex];
-    if (c.cost > _energy) return;
+    if (c.cost > _energy || _busy) return;
     setState(() {
+      _busy = true;
       _energy -= c.cost;
       _hand.removeAt(handIndex);
       _selectedCard = null;
     });
-    _resolve(_me, c, target);
+    await _animateAndResolve(_me, c, target);
     _hand.add(_draw());
-    setState(() {});
+    if (mounted) setState(() => _busy = false);
     _checkEnd();
+  }
+
+  Future<void> _animateAndResolve(
+      _BrPlayer src, CbCard c, _BrPlayer target) async {
+    final k = _kind(c);
+    switch (k) {
+      case _BrKind.attack:
+      case _BrKind.stun:
+        await _projectile(src.id, target.id,
+            k == _BrKind.stun ? AppColors.cyan : src.element.color);
+        _resolve(src, c, target);
+        _hit(target.id);
+        break;
+      case _BrKind.aoe:
+        await _shake();
+        _resolve(src, c, src);
+        for (final p in _players) {
+          if (p.alive && p.id != src.id) _hit(p.id);
+        }
+        break;
+      case _BrKind.shield:
+      case _BrKind.heal:
+        _resolve(src, c, src);
+        _hit(src.id);
+        break;
+    }
+    if (mounted) setState(() {});
   }
 
   void _resolve(_BrPlayer src, CbCard c, _BrPlayer target) {
@@ -159,9 +212,8 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
         _float(src.id, '+🛡${_power(c)}');
         break;
       case _BrKind.heal:
-        final heal = _power(c);
-        src.hp = min(_startHp, src.hp + heal);
-        _float(src.id, '+$heal');
+        src.hp = min(_startHp, src.hp + _power(c));
+        _float(src.id, '+${_power(c)}');
         break;
     }
   }
@@ -178,17 +230,40 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
     if (p.hp <= 0) {
       p.hp = 0;
       p.alive = false;
-      _float(p.id, '☠');
     }
   }
 
   void _float(int pid, String txt) {
     _floating[pid] = txt;
-    Timer(const Duration(milliseconds: 900), () {
+    Timer(const Duration(milliseconds: 1000), () {
       if (mounted && _floating[pid] == txt) {
         setState(() => _floating.remove(pid));
       }
     });
+  }
+
+  void _hit(int pid) {
+    _pulsing.add(pid);
+    Timer(const Duration(milliseconds: 260), () {
+      if (mounted) setState(() => _pulsing.remove(pid));
+    });
+  }
+
+  Future<void> _projectile(int fromPid, int toPid, Color color) async {
+    if (_arena <= 0) return;
+    _projFrom = _posOf(fromPid);
+    _projTo = _posOf(toPid);
+    _projColor = color;
+    _projCtrl.reset();
+    await _projCtrl.forward();
+    _projFrom = null;
+    _projTo = null;
+    await _shake();
+  }
+
+  Future<void> _shake() async {
+    _shakeCtrl.reset();
+    await _shakeCtrl.forward();
   }
 
   // ---- Fin de tour + IA --------------------------------------------------
@@ -199,25 +274,22 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
       _busy = true;
       _selectedCard = null;
     });
-    // Tour de chaque IA vivante.
     for (final bot in _players.where((p) => !p.isHuman)) {
       if (!bot.alive) continue;
       if (bot.stunned) {
         bot.stunned = false;
         setState(() => _turnLabel = '${bot.name} est immobilisé');
-        await Future.delayed(const Duration(milliseconds: 400));
+        await Future.delayed(const Duration(milliseconds: 350));
         continue;
       }
       if (_alive.length <= 1) break;
       setState(() => _turnLabel = 'Tour de ${bot.name}');
-      await Future.delayed(const Duration(milliseconds: 450));
-      _botPlay(bot);
-      setState(() {});
+      await Future.delayed(const Duration(milliseconds: 350));
+      await _botPlay(bot);
       _checkEnd();
       if (_gameEnded) return;
-      await Future.delayed(const Duration(milliseconds: 450));
+      await Future.delayed(const Duration(milliseconds: 250));
     }
-    // Nouveau tour du joueur.
     _round++;
     _energy = min(10, 2 + _round);
     if (_hand.length < _handSize) _hand.add(_draw());
@@ -229,8 +301,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
     }
   }
 
-  void _botPlay(_BrPlayer bot) {
-    // Énergie simulée = round+2 ; l'IA joue 1 à 2 cartes.
+  Future<void> _botPlay(_BrPlayer bot) async {
     var botEnergy = min(10, 2 + _round);
     final plays = 1 + _rng.nextInt(2);
     for (var n = 0; n < plays; n++) {
@@ -242,21 +313,20 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
       botEnergy -= card.cost;
       final k = _kind(card);
       if (k == _BrKind.attack || k == _BrKind.stun) {
-        // Cible = le joueur vivant le plus faible (souvent toi).
         final targets = _players
             .where((p) => p.alive && p.id != bot.id)
             .toList()
           ..sort((a, b) => a.hp.compareTo(b.hp));
         if (targets.isEmpty) return;
-        // 55% cible le plus faible, sinon aléatoire (esprit battle royale).
         final target = _rng.nextDouble() < 0.55
             ? targets.first
             : targets[_rng.nextInt(targets.length)];
-        _resolve(bot, card, target);
+        await _animateAndResolve(bot, card, target);
       } else {
-        _resolve(bot, card, bot);
+        await _animateAndResolve(bot, card, bot);
       }
       if (_alive.length <= 1) return;
+      await Future.delayed(const Duration(milliseconds: 200));
     }
   }
 
@@ -265,7 +335,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
   void _checkEnd() {
     if (!_gameEnded) return;
     final winner = _alive.isNotEmpty ? _alive.first : null;
-    Future.delayed(const Duration(milliseconds: 500), () {
+    Future.delayed(const Duration(milliseconds: 550), () {
       if (mounted) _showEnd(winner);
     });
   }
@@ -326,6 +396,19 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
         SnackBar(content: Text(t), duration: const Duration(milliseconds: 800)),
       );
 
+  // ---- Géométrie de l'arène ----------------------------------------------
+
+  /// Position (centre du nœud) d'un joueur dans l'arène carrée [_arena].
+  Offset _posOf(int pid) {
+    final s = _arena;
+    final center = Offset(s / 2, s / 2);
+    final radius = s * 0.36;
+    // 6 emplacements, "Toi" (pid 0) en bas.
+    final slot = pid; // pid 0..5 -> slot 0..5
+    final angle = pi / 2 + slot * (2 * pi / 6);
+    return center + Offset(cos(angle) * radius, sin(angle) * radius);
+  }
+
   // ---- Rendu -------------------------------------------------------------
 
   @override
@@ -335,15 +418,12 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
         title: const Text('BATTLE ROYALE'),
         actions: [
           if (_started)
-            IconButton(
-                onPressed: _start, icon: const Icon(Icons.refresh)),
+            IconButton(onPressed: _start, icon: const Icon(Icons.refresh)),
         ],
       ),
       extendBodyBehindAppBar: true,
       body: GtBackground(
-        child: SafeArea(
-          child: _started ? _buildGame() : _buildIntro(),
-        ),
+        child: SafeArea(child: _started ? _buildGame() : _buildIntro()),
       ),
     );
   }
@@ -383,10 +463,8 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
   }
 
   Widget _buildGame() {
-    final bots = _players.where((p) => !p.isHuman).toList();
     return Column(
       children: [
-        // Bandeau de tour.
         Container(
           margin: const EdgeInsets.symmetric(vertical: 6),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
@@ -400,23 +478,9 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
                   fontSize: 12,
                   fontWeight: FontWeight.w600)),
         ),
-        // Adversaires (arène).
-        Expanded(
-          child: Center(
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 18,
-              runSpacing: 14,
-              children: bots.map(_playerNode).toList(),
-            ),
-          ),
-        ),
-        // Ma barre (héros joueur).
-        _myBar(),
-        const SizedBox(height: 6),
-        // Actions.
+        Expanded(child: _arenaView()),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: Row(
             children: [
               _pill(Icons.bolt, 'Énergie $_energy', AppColors.cyan),
@@ -429,12 +493,11 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
             ],
           ),
         ),
-        // Main.
         SizedBox(
-          height: 168,
+          height: 160,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
             itemCount: _hand.length,
             separatorBuilder: (_, _) => const SizedBox(width: 8),
             itemBuilder: (_, i) => _handCard(i),
@@ -444,9 +507,89 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
     );
   }
 
+  Widget _arenaView() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final s = min(constraints.maxWidth, constraints.maxHeight);
+        _arena = s;
+        // Décalage de tremblement.
+        final shakeT = _shakeCtrl.value;
+        final dx = shakeT > 0 && shakeT < 1
+            ? sin(shakeT * pi * 6) * 6 * (1 - shakeT)
+            : 0.0;
+        const node = 66.0;
+        return Center(
+          child: Transform.translate(
+            offset: Offset(dx, 0),
+            child: SizedBox(
+              width: s,
+              height: s,
+              child: Stack(
+                children: [
+                  // Anneau central (arène).
+                  Center(
+                    child: Container(
+                      width: s * 0.5,
+                      height: s * 0.5,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(colors: [
+                          AppColors.primary.withValues(alpha: 0.18),
+                          Colors.transparent,
+                        ]),
+                        border: Border.all(
+                            color: AppColors.stroke, width: 1.5),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.emoji_events,
+                            color: AppColors.gold, size: 30),
+                      ),
+                    ),
+                  ),
+                  // Nœuds joueurs.
+                  for (final p in _players)
+                    Positioned(
+                      left: _posOf(p.id).dx - node / 2,
+                      top: _posOf(p.id).dy - node / 2,
+                      width: node,
+                      child: _playerNode(p),
+                    ),
+                  // Projectile.
+                  if (_projFrom != null && _projTo != null)
+                    _buildProjectile(),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildProjectile() {
+    final t = _projCtrl.value;
+    final pos = Offset.lerp(_projFrom!, _projTo!, Curves.easeIn.transform(t))!;
+    return Positioned(
+      left: pos.dx - 10,
+      top: pos.dy - 10,
+      child: Container(
+        width: 20,
+        height: 20,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: _projColor,
+          boxShadow: [
+            BoxShadow(color: _projColor, blurRadius: 14, spreadRadius: 2),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _playerNode(_BrPlayer p) {
-    final selecting = _selectedCard != null && p.alive;
+    final selecting = _selectedCard != null && p.alive && !p.isHuman;
     final hpPct = (p.hp / _startHp).clamp(0.0, 1.0);
+    final pulsing = _pulsing.contains(p.id);
     return GestureDetector(
       onTap: () => _tapPlayer(p),
       child: Opacity(
@@ -455,124 +598,87 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(p.name,
-                style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13)),
-            const SizedBox(height: 4),
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 74,
-                  height: 74,
-                  decoration: BoxDecoration(
-                    gradient: p.element.gradient,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: selecting ? AppColors.gold : p.element.color,
-                      width: selecting ? 3 : 2,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    color: p.isHuman ? AppColors.gold : AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12)),
+            const SizedBox(height: 2),
+            AnimatedScale(
+              scale: pulsing ? 1.18 : 1.0,
+              duration: const Duration(milliseconds: 130),
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      gradient: p.element.gradient,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: selecting
+                            ? AppColors.gold
+                            : (p.isHuman ? Colors.white : p.element.color),
+                        width: selecting ? 3 : 2,
+                      ),
+                      boxShadow: [
+                        if (selecting)
+                          BoxShadow(
+                              color: AppColors.gold.withValues(alpha: 0.6),
+                              blurRadius: 12),
+                        if (pulsing)
+                          BoxShadow(
+                              color: AppColors.danger.withValues(alpha: 0.8),
+                              blurRadius: 16),
+                      ],
                     ),
-                    boxShadow: [
-                      if (selecting)
-                        BoxShadow(
-                            color: AppColors.gold.withValues(alpha: 0.6),
-                            blurRadius: 14),
-                    ],
+                    child: Icon(p.alive ? Icons.person : Icons.close,
+                        color: Colors.white, size: 24),
                   ),
-                  child: Icon(
-                      p.alive ? Icons.person : Icons.close,
-                      color: Colors.white,
-                      size: 30),
-                ),
-                if (_floating[p.id] != null)
-                  Positioned(
-                    top: -6,
-                    child: Text(_floating[p.id]!,
-                        style: TextStyle(
-                            color: _floating[p.id]!.startsWith('-')
-                                ? AppColors.danger
-                                : AppColors.green,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            shadows: const [
-                              Shadow(color: Colors.black, blurRadius: 4)
-                            ])),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            _hpBar(p.hp, hpPct, p.shield),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _myBar() {
-    final p = _me;
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        gradient: p.element.gradient,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white, width: 1.5),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.shield_moon, color: Colors.white),
-          const SizedBox(width: 8),
-          const Text('Toi',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15)),
-          const Spacer(),
-          if (_floating[0] != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Text(_floating[0]!,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16)),
-            ),
-          _pill(Icons.favorite, '${p.hp}', Colors.white),
-          if (p.shield > 0) ...[
-            const SizedBox(width: 6),
-            _pill(Icons.shield, '${p.shield}', Colors.white),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _hpBar(int hp, double pct, int shield) {
-    return SizedBox(
-      width: 74,
-      child: Column(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: pct,
-              minHeight: 6,
-              backgroundColor: AppColors.surfaceAlt,
-              valueColor: AlwaysStoppedAnimation(
-                pct > 0.5
-                    ? AppColors.green
-                    : pct > 0.25
-                        ? AppColors.gold
-                        : AppColors.danger,
+                  if (_floating[p.id] != null)
+                    Positioned(
+                      top: -18,
+                      child: Text(_floating[p.id]!,
+                          style: TextStyle(
+                              color: _floating[p.id]!.startsWith('-')
+                                  ? AppColors.danger
+                                  : AppColors.green,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              shadows: const [
+                                Shadow(color: Colors.black, blurRadius: 4)
+                              ])),
+                    ),
+                ],
               ),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(shield > 0 ? '$hp 🛡$shield' : '$hp',
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 11)),
-        ],
+            const SizedBox(height: 3),
+            SizedBox(
+              width: 60,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: hpPct,
+                  minHeight: 5,
+                  backgroundColor: AppColors.surfaceAlt,
+                  valueColor: AlwaysStoppedAnimation(
+                    hpPct > 0.5
+                        ? AppColors.green
+                        : hpPct > 0.25
+                            ? AppColors.gold
+                            : AppColors.danger,
+                  ),
+                ),
+              ),
+            ),
+            Text(p.shield > 0 ? '${p.hp} 🛡${p.shield}' : '${p.hp}',
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 10)),
+          ],
+        ),
       ),
     );
   }
@@ -581,7 +687,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.3),
+        color: AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -606,7 +712,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
       onTap: () => _tapCard(i),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        width: 116,
+        width: 112,
         transform: Matrix4.translationValues(0, selected ? -10 : 0, 0),
         decoration: BoxDecoration(
           gradient: c.element.gradient,
@@ -680,15 +786,12 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen> {
             child: Text(label,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                    color: color,
-                    fontSize: 8.5,
-                    fontWeight: FontWeight.w800)),
+                    color: color, fontSize: 8.5, fontWeight: FontWeight.w800)),
           ),
         ],
       ),
     );
   }
-
 }
 
 enum _BrKind { attack, aoe, stun, shield, heal }
