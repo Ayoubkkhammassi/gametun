@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/gt_scaffold.dart';
 import 'cb_card_art.dart';
 import 'cb_data.dart';
 import 'cb_models.dart';
+import 'cb_sfx.dart';
 
 /// GameTun Battle Royale — jeu de cartes en arène circulaire : 6 joueurs,
 /// chacun avec des PV, jouent des cartes pour s'attaquer. Dernier survivant gagne.
@@ -34,11 +36,13 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
   int? _selectedCard;
   bool _busy = false;
   bool _started = false;
+  bool _muted = false;
   String? _turnLabel;
   final Map<int, String> _floating = {};
   final Set<int> _pulsing = {}; // nœuds en train d'encaisser un coup
 
-  // Animations.
+  // Animations + son.
+  final _sfx = CbSfx();
   late final AnimationController _projCtrl;
   late final AnimationController _shakeCtrl;
   double _arena = 0;
@@ -63,6 +67,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
   void dispose() {
     _projCtrl.dispose();
     _shakeCtrl.dispose();
+    _sfx.dispose();
     super.dispose();
   }
 
@@ -145,6 +150,8 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
       _snack('Pas assez d\'énergie');
       return;
     }
+    _sfx.play('tap');
+    HapticFeedback.selectionClick();
     if (_needsTarget(c)) {
       setState(() => _selectedCard = (_selectedCard == i) ? null : i);
     } else {
@@ -185,6 +192,8 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
         _hit(target.id);
         break;
       case _BrKind.aoe:
+        _sfx.play('hit');
+        HapticFeedback.heavyImpact();
         await _shake();
         _resolve(src, c, src);
         for (final p in _players) {
@@ -217,10 +226,12 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
       case _BrKind.shield:
         src.shield += _power(c);
         _float(src.id, '+🛡${_power(c)}');
+        _sfx.play('buff');
         break;
       case _BrKind.heal:
         src.hp = min(_startHp, src.hp + _power(c));
         _float(src.id, '+${_power(c)}');
+        _sfx.play('buff');
         break;
     }
   }
@@ -237,6 +248,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
     if (p.hp <= 0) {
       p.hp = 0;
       p.alive = false;
+      _sfx.play('elim');
     }
   }
 
@@ -265,6 +277,8 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
     await _projCtrl.forward();
     _projFrom = null;
     _projTo = null;
+    _sfx.play('hit');
+    HapticFeedback.mediumImpact();
     await _shake();
   }
 
@@ -349,6 +363,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
 
   void _showEnd(_BrPlayer? winner) {
     final iWon = winner != null && winner.isHuman;
+    _sfx.play(iWon ? 'win' : 'lose');
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -424,6 +439,14 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
       appBar: AppBar(
         title: const Text('BATTLE ROYALE'),
         actions: [
+          IconButton(
+            tooltip: _muted ? 'Activer le son' : 'Couper le son',
+            onPressed: () => setState(() {
+              _muted = !_muted;
+              _sfx.muted = _muted;
+            }),
+            icon: Icon(_muted ? Icons.volume_off : Icons.volume_up),
+          ),
           if (_started)
             IconButton(onPressed: _start, icon: const Icon(Icons.refresh)),
         ],
