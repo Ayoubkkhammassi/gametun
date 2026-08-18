@@ -1,6 +1,6 @@
 {
-  "versionCode": 22,
-  "versionName": "1.2.2",
-  "message": "Boutons en pleine largeur + animations d'entrée ✨ : accueil, connexion et cartes de jeux qui apparaissent en cascade !",
+  "versionCode": 23,
+  "versionName": "1.2.3",
+  "message": "Profil premium 👤 : avatar à anneau dégradé rotatif, panneau en verre + loader lumineux !",
   "mandatory": false
 }

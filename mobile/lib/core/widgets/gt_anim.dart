@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 
@@ -67,4 +68,150 @@ class _GTFadeInState extends State<GTFadeIn>
       child: widget.child,
     );
   }
+}
+
+/// Anneau dégradé rotatif autour d'un contenu circulaire (avatar premium).
+class GTGradientRing extends StatefulWidget {
+  final Widget child;
+  final double size; // diamètre extérieur
+  final double thickness;
+  const GTGradientRing({
+    super.key,
+    required this.child,
+    this.size = 108,
+    this.thickness = 4,
+  });
+
+  @override
+  State<GTGradientRing> createState() => _GTGradientRingState();
+}
+
+class _GTGradientRingState extends State<GTGradientRing>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(seconds: 6))
+        ..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final inner = widget.size - widget.thickness * 2;
+    return SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          RotationTransition(
+            turns: _c,
+            child: Container(
+              width: widget.size,
+              height: widget.size,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: SweepGradient(colors: [
+                  AppColors.cyan,
+                  AppColors.primary,
+                  AppColors.magenta,
+                  AppColors.gold,
+                  AppColors.cyan,
+                ]),
+              ),
+            ),
+          ),
+          // Trou central (masque) + glow.
+          Container(
+            width: inner + 2,
+            height: inner + 2,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.bg,
+              boxShadow: [
+                BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.4),
+                    blurRadius: 20),
+              ],
+            ),
+          ),
+          SizedBox(width: inner, height: inner, child: widget.child),
+        ],
+      ),
+    );
+  }
+}
+
+/// Loader premium : arc lumineux qui tourne + halo pulsant.
+class GTLoader extends StatefulWidget {
+  final double size;
+  const GTLoader({super.key, this.size = 44});
+
+  @override
+  State<GTLoader> createState() => _GTLoaderState();
+}
+
+class _GTLoaderState extends State<GTLoader>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(seconds: 1))
+        ..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: AnimatedBuilder(
+        animation: _c,
+        builder: (_, _) => CustomPaint(
+          painter: _LoaderPainter(_c.value),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoaderPainter extends CustomPainter {
+  final double t;
+  _LoaderPainter(this.t);
+
+  @override
+  void paint(Canvas c, Size s) {
+    final center = Offset(s.width / 2, s.height / 2);
+    final radius = s.width / 2 - 3;
+    // Piste discrète.
+    c.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..color = Colors.white.withValues(alpha: 0.08),
+    );
+    // Arc lumineux dégradé.
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.4
+      ..strokeCap = StrokeCap.round
+      ..shader = const SweepGradient(colors: [
+        AppColors.cyan,
+        AppColors.primary,
+        AppColors.magenta,
+      ]).createShader(rect);
+    c.drawArc(rect, t * 2 * pi, pi * 1.4, false, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _LoaderPainter old) => old.t != t;
 }

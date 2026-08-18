@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/gt_anim.dart';
 import '../../../core/widgets/gt_button.dart';
 import '../../../core/widgets/gt_scaffold.dart';
 import '../../../core/widgets/gt_avatar.dart';
+import '../../../core/widgets/premium_badge.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../chat/conversations_screen.dart';
 import '../../social/liked_me_screen.dart';
@@ -45,47 +47,68 @@ class ProfileTab extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 24),
-            // Avatar + pseudo
-            Center(
-              child: Column(
-                children: [
-                  GestureDetector(
-                    onTap: () => _push(context, const ProfileEditScreen()),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.4),
-                            blurRadius: 24,
+            // Panneau héros en verre : avatar à anneau dégradé + identité.
+            GTFadeIn(
+              child: GtCard(
+                padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
+                child: Column(
+                  children: [
+                    GestureDetector(
+                      onTap: () => _push(context, const ProfileEditScreen()),
+                      child: GTGradientRing(
+                        size: 112,
+                        thickness: 4,
+                        child: GtAvatar(
+                          avatarUrl: user?.avatarUrl,
+                          pseudo: user?.pseudo ?? '?',
+                          radius: 52,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            user?.pseudo ?? '—',
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
+                        ),
+                        if (user?.isPremium ?? false) ...[
+                          const SizedBox(width: 6),
+                          const PremiumBadge(size: 18),
                         ],
-                      ),
-                      child: GtAvatar(
-                        avatarUrl: user?.avatarUrl,
-                        pseudo: user?.pseudo ?? '?',
-                        radius: 48,
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '🇹🇳 ${user?.region ?? 'Tunisie'}',
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: () =>
+                          _push(context, const ProfileEditScreen()),
+                      icon: const Icon(Icons.edit, size: 16),
+                      label: const Text('Modifier'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.textPrimary,
+                        side: BorderSide(color: GT.glassStroke),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(GT.rMd),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    user?.pseudo ?? '—',
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '🇹🇳 ${user?.region ?? 'Tunisie'}',
-                    style: const TextStyle(color: AppColors.textSecondary),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             _InfoRow(
               icon: Icons.mail_outline,
               label: 'Email',
