@@ -826,7 +826,7 @@ class _BattleRoyaleScreenState extends State<BattleRoyaleScreen>
   }
 
   Widget _buildAnimSprite(double arenaSize) {
-    final frame = (_animCtrl.value * 6).floor().clamp(0, 5);
+    final frame = (_animCtrl.value * 5).floor().clamp(0, 4);
     final size = arenaSize * 0.62;
     final at = _animAt!;
     // Fondu seulement sur les 12% finaux.
