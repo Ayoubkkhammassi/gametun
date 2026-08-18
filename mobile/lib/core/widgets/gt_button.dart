@@ -61,9 +61,10 @@ class _GtButtonState extends State<GtButton> {
               borderRadius: BorderRadius.circular(GT.rMd),
               boxShadow: [
                 BoxShadow(
-                  color: _glow.withValues(alpha: _down ? 0.25 : 0.45),
-                  blurRadius: _down ? 12 : 24,
-                  offset: Offset(0, _down ? 4 : 10),
+                  color: _glow.withValues(alpha: _down ? 0.18 : 0.28),
+                  blurRadius: _down ? 8 : 14,
+                  spreadRadius: -4,
+                  offset: Offset(0, _down ? 3 : 6),
                 ),
               ],
             ),
@@ -72,19 +73,19 @@ class _GtButtonState extends State<GtButton> {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Reflet supérieur.
+                  // Reflet supérieur discret.
                   Positioned(
                     top: 0,
                     left: 0,
                     right: 0,
-                    height: 26,
+                    height: 22,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            Colors.white.withValues(alpha: 0.22),
+                            Colors.white.withValues(alpha: 0.12),
                             Colors.white.withValues(alpha: 0),
                           ],
                         ),
