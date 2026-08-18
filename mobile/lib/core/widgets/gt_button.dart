@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/app_colors.dart';
 
-/// Bouton principal à dégradé néon, avec état de chargement.
-class GtButton extends StatelessWidget {
+/// Bouton principal à dégradé néon : micro-interaction (scale au press),
+/// glow teinté, reflet, retour haptique. API compatible.
+class GtButton extends StatefulWidget {
   final String label;
   final VoidCallback? onPressed;
   final bool loading;
@@ -19,57 +21,103 @@ class GtButton extends StatelessWidget {
   });
 
   @override
+  State<GtButton> createState() => _GtButtonState();
+}
+
+class _GtButtonState extends State<GtButton> {
+  bool _down = false;
+
+  Color get _glow {
+    final g = widget.gradient;
+    if (g is LinearGradient && g.colors.isNotEmpty) return g.colors.first;
+    return AppColors.primary;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final enabled = onPressed != null && !loading;
+    final enabled = widget.onPressed != null && !widget.loading;
     return Opacity(
       opacity: enabled ? 1 : 0.6,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: enabled ? onPressed : null,
-          child: Ink(
+      child: GestureDetector(
+        onTapDown: enabled ? (_) => setState(() => _down = true) : null,
+        onTapCancel: enabled ? () => setState(() => _down = false) : null,
+        onTapUp: enabled
+            ? (_) {
+                setState(() => _down = false);
+                HapticFeedback.lightImpact();
+                widget.onPressed!();
+              }
+            : null,
+        child: AnimatedScale(
+          scale: _down ? 0.97 : 1,
+          duration: GT.fast,
+          curve: Curves.easeOut,
+          child: AnimatedContainer(
+            duration: GT.fast,
+            height: 54,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              gradient: gradient,
-              borderRadius: BorderRadius.circular(16),
+              gradient: widget.gradient,
+              borderRadius: BorderRadius.circular(GT.rMd),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.35),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
+                  color: _glow.withValues(alpha: _down ? 0.25 : 0.45),
+                  blurRadius: _down ? 12 : 24,
+                  offset: Offset(0, _down ? 4 : 10),
                 ),
               ],
             ),
-            child: Container(
-              height: 54,
-              alignment: Alignment.center,
-              child: loading
-                  ? const SizedBox(
-                      height: 22,
-                      width: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.4,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (icon != null) ...[
-                          Icon(icon, color: Colors.white, size: 20),
-                          const SizedBox(width: 10),
-                        ],
-                        Text(
-                          label,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                            letterSpacing: 0.5,
-                          ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(GT.rMd),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Reflet supérieur.
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 26,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.white.withValues(alpha: 0.22),
+                            Colors.white.withValues(alpha: 0),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
+                  ),
+                  widget.loading
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2.4, color: Colors.white),
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (widget.icon != null) ...[
+                              Icon(widget.icon, color: Colors.white, size: 20),
+                              const SizedBox(width: 10),
+                            ],
+                            Text(
+                              widget.label,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                ],
+              ),
             ),
           ),
         ),
@@ -78,7 +126,7 @@ class GtButton extends StatelessWidget {
   }
 }
 
-/// Bouton secondaire (contour), pour actions moins prioritaires.
+/// Bouton secondaire (verre + contour lumineux), pour actions moins prioritaires.
 class GtOutlineButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
@@ -94,13 +142,19 @@ class GtOutlineButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return OutlinedButton(
-      onPressed: onPressed,
+      onPressed: onPressed == null
+          ? null
+          : () {
+              HapticFeedback.selectionClick();
+              onPressed!();
+            },
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(54),
-        side: const BorderSide(color: AppColors.stroke),
+        backgroundColor: Colors.white.withValues(alpha: 0.04),
+        side: BorderSide(color: GT.glassStroke),
         foregroundColor: AppColors.textPrimary,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(GT.rMd),
         ),
       ),
       child: Row(
@@ -112,7 +166,7 @@ class GtOutlineButton extends StatelessWidget {
           ],
           Text(
             label,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
           ),
         ],
       ),

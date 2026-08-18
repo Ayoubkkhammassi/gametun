@@ -52,4 +52,48 @@ class AppColors {
     end: Alignment.bottomRight,
     colors: [Color(0xFF3B1D6E), Color(0xFF1E1145)],
   );
+
+  static const LinearGradient dangerGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFF87171), Color(0xFFB91C1C)],
+  );
+
+  static const LinearGradient greenGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF34D399), Color(0xFF059669)],
+  );
+
+  static const LinearGradient cyanGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF22D3EE), Color(0xFF0EA5E9)],
+  );
+}
+
+/// Design tokens GameTun — cohérence globale (rayons, durées, flou, verre).
+class GT {
+  GT._();
+
+  // Rayons
+  static const double rSm = 12;
+  static const double rMd = 18;
+  static const double rLg = 24;
+  static const double rXl = 32;
+
+  // Durées d'animation
+  static const Duration fast = Duration(milliseconds: 150);
+  static const Duration normal = Duration(milliseconds: 260);
+  static const Duration slow = Duration(milliseconds: 420);
+
+  // Flou (glass)
+  static const double blurSm = 8;
+  static const double blurMd = 16;
+  static const double blurLg = 26;
+
+  // Surfaces de verre
+  static Color glassFill = Colors.white.withValues(alpha: 0.05);
+  static Color glassStroke = Colors.white.withValues(alpha: 0.10);
+  static Color glassHighlight = Colors.white.withValues(alpha: 0.14);
 }
