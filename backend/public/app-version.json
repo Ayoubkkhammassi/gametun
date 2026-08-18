@@ -1,6 +1,6 @@
 {
-  "versionCode": 25,
-  "versionName": "1.2.5",
-  "message": "Boutons corrigés 🔧 : halo adouci et reflet net (fini l'effet 'rectangle flou') !",
+  "versionCode": 26,
+  "versionName": "1.2.6",
+  "message": "Boutons nettoyés 🔧 : dégradé propre, plus aucun pavé clair au milieu !",
   "mandatory": false
 }

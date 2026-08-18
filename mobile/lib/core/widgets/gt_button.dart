@@ -52,8 +52,7 @@ class _GtButtonState extends State<GtButton> {
           scale: _down ? 0.97 : 1,
           duration: GT.fast,
           curve: Curves.easeOut,
-          child: AnimatedContainer(
-            duration: GT.fast,
+          child: Container(
             height: 54,
             alignment: Alignment.center,
             decoration: BoxDecoration(
@@ -61,65 +60,38 @@ class _GtButtonState extends State<GtButton> {
               borderRadius: BorderRadius.circular(GT.rMd),
               boxShadow: [
                 BoxShadow(
-                  color: _glow.withValues(alpha: _down ? 0.18 : 0.28),
-                  blurRadius: _down ? 8 : 14,
-                  spreadRadius: -4,
-                  offset: Offset(0, _down ? 3 : 6),
+                  color: _glow.withValues(alpha: 0.28),
+                  blurRadius: 12,
+                  spreadRadius: -6,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(GT.rMd),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Reflet supérieur discret.
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
+            child: widget.loading
+                ? const SizedBox(
                     height: 22,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.white.withValues(alpha: 0.12),
-                            Colors.white.withValues(alpha: 0),
-                          ],
+                    width: 22,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.4, color: Colors.white),
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.icon != null) ...[
+                        Icon(widget.icon, color: Colors.white, size: 20),
+                        const SizedBox(width: 10),
+                      ],
+                      Text(
+                        widget.label,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          letterSpacing: 0.5,
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                  widget.loading
-                      ? const SizedBox(
-                          height: 22,
-                          width: 22,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2.4, color: Colors.white),
-                        )
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (widget.icon != null) ...[
-                              Icon(widget.icon, color: Colors.white, size: 20),
-                              const SizedBox(width: 10),
-                            ],
-                            Text(
-                              widget.label,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 15,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                ],
-              ),
-            ),
           ),
         ),
       ),
