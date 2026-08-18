@@ -215,3 +215,72 @@ class _LoaderPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _LoaderPainter old) => old.t != t;
 }
+
+/// État vide élégant : icône dans un halo, message, action optionnelle.
+class GTEmptyState extends StatelessWidget {
+  final IconData icon;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  const GTEmptyState({
+    super.key,
+    required this.icon,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GTFadeIn(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 96,
+                height: 96,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(colors: [
+                    AppColors.primary.withValues(alpha: 0.28),
+                    Colors.transparent,
+                  ]),
+                ),
+                child: Icon(icon, size: 42, color: AppColors.primary),
+              ),
+              const SizedBox(height: 18),
+              Text(message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 14)),
+              if (actionLabel != null && onAction != null) ...[
+                const SizedBox(height: 20),
+                FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// État d'erreur élégant (jamais une erreur technique brute) + Réessayer.
+class GTErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const GTErrorState({super.key, required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return GTEmptyState(
+      icon: Icons.wifi_off_rounded,
+      message: message,
+      actionLabel: 'Réessayer',
+      onAction: onRetry,
+    );
+  }
+}

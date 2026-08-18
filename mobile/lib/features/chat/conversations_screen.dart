@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/gt_anim.dart';
 import '../../core/widgets/gt_scaffold.dart';
 import 'chat_repository.dart';
 import 'chat_screen.dart';
@@ -75,15 +76,22 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
               future: _future,
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(child: GTLoader());
                 }
                 if (snap.hasError) {
-                  return _centered('Erreur : ${snap.error}');
+                  return GTErrorState(
+                    message:
+                        'Impossible de charger tes messages. Vérifie ta connexion.',
+                    onRetry: _reload,
+                  );
                 }
                 final convs = snap.data ?? [];
                 if (convs.isEmpty) {
-                  return _centered(
-                      'Aucune conversation. Fais un match pour discuter !');
+                  return const GTEmptyState(
+                    icon: Icons.forum_rounded,
+                    message:
+                        'Aucune conversation.\nFais un match pour discuter !',
+                  );
                 }
                 return ListView.separated(
                   padding: const EdgeInsets.all(16),
@@ -172,14 +180,4 @@ class _ConversationsScreenState extends ConsumerState<ConversationsScreen>
     );
   }
 
-  Widget _centered(String text) => ListView(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(40),
-            child: Text(text,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textSecondary)),
-          ),
-        ],
-      );
 }

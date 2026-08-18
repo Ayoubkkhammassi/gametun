@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/gt_anim.dart';
 import '../../core/widgets/gt_scaffold.dart';
 
 class NotificationItem {
@@ -101,25 +102,17 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen>
             child: async.when(
               skipLoadingOnReload: true,
               skipLoadingOnRefresh: true,
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => ListView(children: [
-                Padding(
-                  padding: const EdgeInsets.all(40),
-                  child: Text('Erreur : $e',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppColors.textSecondary)),
-                ),
-              ]),
+              loading: () => const Center(child: GTLoader()),
+              error: (e, _) => GTErrorState(
+                message: 'Impossible de charger les notifications.',
+                onRetry: () => ref.invalidate(notificationsProvider),
+              ),
               data: (items) {
                 if (items.isEmpty) {
-                  return ListView(children: const [
-                    Padding(
-                      padding: EdgeInsets.all(40),
-                      child: Text('Aucune notification pour l\'instant.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textSecondary)),
-                    ),
-                  ]);
+                  return const GTEmptyState(
+                    icon: Icons.notifications_none_rounded,
+                    message: 'Aucune notification pour l\'instant.',
+                  );
                 }
                 return ListView.separated(
                   padding: const EdgeInsets.all(16),

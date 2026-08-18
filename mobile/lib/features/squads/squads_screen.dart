@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/gt_anim.dart';
 import '../../core/widgets/gt_button.dart';
 import '../../core/widgets/gt_scaffold.dart';
 import 'squad_repository.dart';
@@ -81,24 +82,34 @@ class _SquadsScreenState extends ConsumerState<SquadsScreen> {
                   future: _future,
                   builder: (context, snap) {
                     if (snap.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const Center(child: GTLoader());
                     }
                     if (snap.hasError) {
-                      return _centered('Erreur : ${snap.error}');
+                      return GTErrorState(
+                        message:
+                            'Impossible de charger les squads. Vérifie ta connexion.',
+                        onRetry: _reload,
+                      );
                     }
                     final squads = snap.data ?? [];
                     if (squads.isEmpty) {
-                      return _centered(_discover
-                          ? 'Aucune squad ouverte pour l\'instant.'
-                          : 'Tu n\'as pas encore de squad. Crée la tienne !');
+                      return GTEmptyState(
+                        icon: Icons.groups_rounded,
+                        message: _discover
+                            ? 'Aucune squad ouverte pour l\'instant.'
+                            : 'Tu n\'as pas encore de squad.\nCrée la tienne !',
+                      );
                     }
                     return ListView.builder(
                       padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
                       itemCount: squads.length,
-                      itemBuilder: (_, i) => _SquadCard(
-                        squad: squads[i],
-                        showJoin: _discover,
-                        onJoin: () => _join(squads[i]),
+                      itemBuilder: (_, i) => GTFadeIn(
+                        delay: Duration(milliseconds: 60 * i),
+                        child: _SquadCard(
+                          squad: squads[i],
+                          showJoin: _discover,
+                          onJoin: () => _join(squads[i]),
+                        ),
                       ),
                     );
                   },
@@ -128,16 +139,6 @@ class _SquadsScreenState extends ConsumerState<SquadsScreen> {
     );
   }
 
-  Widget _centered(String text) => ListView(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(40),
-            child: Text(text,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textSecondary)),
-          ),
-        ],
-      );
 }
 
 class _Tabs extends StatelessWidget {
