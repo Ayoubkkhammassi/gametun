@@ -284,3 +284,89 @@ class GTErrorState extends StatelessWidget {
     );
   }
 }
+
+/// Carte en verre avec bordure LED RGB animée (style éclairage gaming).
+class GTRgbCard extends StatefulWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final double radius;
+  final double borderWidth;
+  const GTRgbCard({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(18),
+    this.radius = GT.rLg,
+    this.borderWidth = 2.5,
+  });
+
+  @override
+  State<GTRgbCard> createState() => _GTRgbCardState();
+}
+
+class _GTRgbCardState extends State<GTRgbCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(seconds: 5))
+        ..repeat();
+
+  static const _rainbow = [
+    Color(0xFFFF3B3B),
+    Color(0xFFFF9F1C),
+    Color(0xFFFFE44D),
+    Color(0xFF34D399),
+    Color(0xFF22D3EE),
+    Color(0xFF8B5CF6),
+    Color(0xFFEC4899),
+    Color(0xFFFF3B3B),
+  ];
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, _) {
+        final t = _c.value;
+        final glow = HSVColor.fromAHSV(1, (t * 360) % 360, 0.85, 1).toColor();
+        return Container(
+          padding: EdgeInsets.all(widget.borderWidth),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(widget.radius),
+            gradient: SweepGradient(
+              transform: GradientRotation(t * 2 * 3.14159),
+              colors: _rainbow,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: glow.withValues(alpha: 0.55),
+                blurRadius: 22,
+                spreadRadius: -2,
+              ),
+            ],
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius:
+                  BorderRadius.circular(widget.radius - widget.borderWidth),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF15121F).withValues(alpha: 0.96),
+                  const Color(0xFF0C0A14).withValues(alpha: 0.96),
+                ],
+              ),
+            ),
+            padding: widget.padding,
+            child: widget.child,
+          ),
+        );
+      },
+    );
+  }
+}

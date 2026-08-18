@@ -23,11 +23,11 @@ class _GtBackgroundState extends State<GtBackground>
     super.initState();
     _c = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 30),
+      duration: const Duration(seconds: 22),
     )..repeat();
     final rng = Random(7);
     _particles = List.generate(
-      16,
+      26,
       (_) => _Particle(
         x: rng.nextDouble(),
         y: rng.nextDouble(),
@@ -93,37 +93,47 @@ class _AuroraPainter extends CustomPainter {
   @override
   void paint(Canvas c, Size s) {
     final a = t * 2 * pi;
-    // 3 halos qui dérivent doucement.
+    final pulse = 0.5 + 0.5 * sin(a); // 0..1 respiration
+    // Halos qui dérivent + respirent (plus vivants).
     _blob(
       c,
       s,
-      Offset(s.width * (0.2 + 0.12 * sin(a)), s.height * (0.12 + 0.05 * cos(a))),
-      s.width * 0.7,
-      AppColors.primary.withValues(alpha: 0.22),
+      Offset(s.width * (0.2 + 0.22 * sin(a)), s.height * (0.14 + 0.10 * cos(a))),
+      s.width * (0.66 + 0.08 * pulse),
+      AppColors.primary.withValues(alpha: 0.20 + 0.10 * pulse),
     );
     _blob(
       c,
       s,
-      Offset(s.width * (0.85 + 0.08 * cos(a * 0.8)),
-          s.height * (0.8 + 0.06 * sin(a * 0.8))),
-      s.width * 0.7,
-      AppColors.magenta.withValues(alpha: 0.16),
+      Offset(s.width * (0.82 + 0.16 * cos(a * 0.8)),
+          s.height * (0.78 + 0.12 * sin(a * 0.8))),
+      s.width * (0.66 + 0.08 * (1 - pulse)),
+      AppColors.magenta.withValues(alpha: 0.16 + 0.08 * (1 - pulse)),
     );
     _blob(
       c,
       s,
-      Offset(s.width * (0.1 + 0.06 * cos(a * 1.2)),
-          s.height * (0.95 + 0.04 * sin(a))),
+      Offset(s.width * (0.12 + 0.14 * cos(a * 1.3)),
+          s.height * (0.9 + 0.08 * sin(a * 1.1))),
       s.width * 0.55,
-      AppColors.cyan.withValues(alpha: 0.10),
+      AppColors.cyan.withValues(alpha: 0.12 + 0.06 * pulse),
     );
-    // Particules flottantes.
+    _blob(
+      c,
+      s,
+      Offset(s.width * (0.7 + 0.12 * sin(a * 1.1)),
+          s.height * (0.2 + 0.08 * cos(a * 1.4))),
+      s.width * 0.45,
+      AppColors.gold.withValues(alpha: 0.06 + 0.04 * (1 - pulse)),
+    );
+    // Particules flottantes (plus visibles).
     final pp = Paint();
     for (final p in particles) {
       final py = (p.y - (t * p.speed)) % 1.0;
-      final drift = sin(a + p.phase) * 6;
+      final drift = sin(a + p.phase) * 10;
       final pos = Offset(p.x * s.width + drift, py * s.height);
-      pp.color = Colors.white.withValues(alpha: 0.06 + 0.06 * sin(a + p.phase));
+      pp.color =
+          Colors.white.withValues(alpha: 0.08 + 0.08 * sin(a * 1.5 + p.phase));
       c.drawCircle(pos, p.r, pp);
     }
   }

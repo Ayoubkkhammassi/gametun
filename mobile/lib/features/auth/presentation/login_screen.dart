@@ -67,7 +67,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 32),
                   GTFadeIn(
                     delay: const Duration(milliseconds: 120),
-                    child: GtCard(
+                    child: GTRgbCard(
                     padding: const EdgeInsets.all(18),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -108,7 +108,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                 // Panneau en verre avec les actions.
                 GTFadeIn(
                   delay: const Duration(milliseconds: 220),
-                  child: GtCard(
+                  child: GTRgbCard(
                   padding: const EdgeInsets.all(18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
