@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/gt_anim.dart';
 import '../../../core/widgets/gt_button.dart';
 import '../../../core/widgets/gt_logo.dart';
 import '../../../core/widgets/gt_scaffold.dart';
@@ -64,7 +65,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  GtCard(
+                  GTFadeIn(
+                    delay: const Duration(milliseconds: 120),
+                    child: GtCard(
                     padding: const EdgeInsets.all(18),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -111,6 +114,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                       ],
                     ),
+                  ),
                   ),
                   const SizedBox(height: 16),
                   Center(

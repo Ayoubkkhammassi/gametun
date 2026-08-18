@@ -1,6 +1,6 @@
 {
-  "versionCode": 21,
-  "versionName": "1.2.1",
-  "message": "Nouvelle page de connexion 💜 : logo néon pulsant (LED), wordmark dégradé et panneau en verre !",
+  "versionCode": 22,
+  "versionName": "1.2.2",
+  "message": "Boutons en pleine largeur + animations d'entrée ✨ : accueil, connexion et cartes de jeux qui apparaissent en cascade !",
   "mandatory": false
 }

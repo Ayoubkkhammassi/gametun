@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/gt_anim.dart';
 import '../../core/widgets/gt_scaffold.dart';
 import 'tic_tac_toe_screen.dart';
 import 'memory_screen.dart';
@@ -58,9 +59,20 @@ class PlayScreen extends StatelessWidget {
                       TextStyle(color: AppColors.textSecondary, fontSize: 13)),
             ),
             const SizedBox(height: 20),
-            ...games.map((g) => Padding(
+            ...games.asMap().entries.map((e) => GTFadeIn(
+                  delay: Duration(milliseconds: 80 * e.key),
+                  child: Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: GtCard(
+                  child: _buildGameCard(context, e.value),
+                ))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGameCard(BuildContext context, _MiniGame g) {
+    return GtCard(
                     onTap: g.builder == null
                         ? null
                         : () => Navigator.of(context).push(
@@ -99,12 +111,7 @@ class PlayScreen extends StatelessWidget {
                               color: AppColors.textMuted),
                       ],
                     ),
-                  ),
-                )),
-          ],
-        ),
-      ),
-    );
+                  );
   }
 }
 

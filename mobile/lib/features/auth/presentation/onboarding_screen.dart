@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/gt_anim.dart';
 import '../../../core/widgets/gt_button.dart';
 import '../../../core/widgets/gt_logo.dart';
 import '../../../core/widgets/gt_scaffold.dart';
@@ -105,9 +106,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                 ),
                 const Spacer(flex: 4),
                 // Panneau en verre avec les actions.
-                GtCard(
+                GTFadeIn(
+                  delay: const Duration(milliseconds: 220),
+                  child: GtCard(
                   padding: const EdgeInsets.all(18),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       GtButton(
                         label: 'CRÉER UN COMPTE',
@@ -136,6 +140,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                       ],
                     ],
                   ),
+                ),
                 ),
                 const Spacer(flex: 1),
               ],
