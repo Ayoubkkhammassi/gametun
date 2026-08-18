@@ -64,41 +64,53 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  GtTextField(
-                    controller: _identifier,
-                    label: 'Email ou pseudo',
-                    hint: 'ex: AYOUB ou ayoub@mail.com',
-                    icon: Icons.person_outline,
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Champ requis' : null,
-                  ),
-                  const SizedBox(height: 18),
-                  GtTextField(
-                    controller: _password,
-                    label: 'Mot de passe',
-                    hint: '••••••••',
-                    icon: Icons.lock_outline,
-                    obscure: _obscure,
-                    suffix: IconButton(
-                      icon: Icon(
-                        _obscure ? Icons.visibility_off : Icons.visibility,
-                        color: AppColors.textMuted,
-                        size: 20,
-                      ),
-                      onPressed: () => setState(() => _obscure = !_obscure),
+                  GtCard(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        GtTextField(
+                          controller: _identifier,
+                          label: 'Email ou pseudo',
+                          hint: 'ex: AYOUB ou ayoub@mail.com',
+                          icon: Icons.person_outline,
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Champ requis'
+                              : null,
+                        ),
+                        const SizedBox(height: 18),
+                        GtTextField(
+                          controller: _password,
+                          label: 'Mot de passe',
+                          hint: '••••••••',
+                          icon: Icons.lock_outline,
+                          obscure: _obscure,
+                          suffix: IconButton(
+                            icon: Icon(
+                              _obscure
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              color: AppColors.textMuted,
+                              size: 20,
+                            ),
+                            onPressed: () =>
+                                setState(() => _obscure = !_obscure),
+                          ),
+                          validator: (v) =>
+                              (v == null || v.isEmpty) ? 'Champ requis' : null,
+                        ),
+                        if (state.error != null) ...[
+                          const SizedBox(height: 16),
+                          _ErrorBanner(message: state.error!),
+                        ],
+                        const SizedBox(height: 24),
+                        GtButton(
+                          label: 'SE CONNECTER',
+                          loading: state.loading,
+                          onPressed: _submit,
+                        ),
+                      ],
                     ),
-                    validator: (v) =>
-                        (v == null || v.isEmpty) ? 'Champ requis' : null,
-                  ),
-                  if (state.error != null) ...[
-                    const SizedBox(height: 16),
-                    _ErrorBanner(message: state.error!),
-                  ],
-                  const SizedBox(height: 28),
-                  GtButton(
-                    label: 'SE CONNECTER',
-                    loading: state.loading,
-                    onPressed: _submit,
                   ),
                   const SizedBox(height: 16),
                   Center(

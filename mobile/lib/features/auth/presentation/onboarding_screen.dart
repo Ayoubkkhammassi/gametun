@@ -7,12 +7,35 @@ import '../../../core/widgets/gt_logo.dart';
 import '../../../core/widgets/gt_scaffold.dart';
 import '../application/auth_controller.dart';
 
-/// Écran 1 (spec §4) : logo + slogan + Créer un compte / Se connecter / Google.
-class OnboardingScreen extends ConsumerWidget {
+/// Écran 1 (spec §4) : logo néon + slogan + Créer un compte / Se connecter / Google.
+class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
+}
+
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(authControllerProvider);
     return Scaffold(
       body: GtBackground(
@@ -22,54 +45,127 @@ class OnboardingScreen extends ConsumerWidget {
             child: Column(
               children: [
                 const Spacer(flex: 3),
-                const GtLogo(size: 96),
-                const SizedBox(height: 20),
-                const Text(
-                  'La communauté gaming tunisienne',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 16,
-                    height: 1.4,
+                // Logo avec halo néon pulsant (LED).
+                AnimatedBuilder(
+                  animation: _pulse,
+                  builder: (_, child) {
+                    final g = 0.4 + 0.35 * _pulse.value;
+                    return Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: g),
+                            blurRadius: 50 + 30 * _pulse.value,
+                            spreadRadius: 6,
+                          ),
+                          BoxShadow(
+                            color: AppColors.magenta.withValues(alpha: g * 0.6),
+                            blurRadius: 70 + 30 * _pulse.value,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: child,
+                    );
+                  },
+                  child: const GtLogo(size: 104),
+                ),
+                const SizedBox(height: 28),
+                // Wordmark néon.
+                ShaderMask(
+                  shaderCallback: (b) => const LinearGradient(colors: [
+                    AppColors.cyan,
+                    AppColors.primary,
+                    AppColors.magenta,
+                  ]).createShader(b),
+                  child: const Text(
+                    'GAMETUN',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 34,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 3,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
+                const Text(
+                  'La communauté gaming tunisienne 🇹🇳',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 15),
+                ),
+                const SizedBox(height: 8),
+                const _NeonDivider(),
+                const SizedBox(height: 8),
                 const Text(
                   'Trouve tes joueurs. Crée ton équipe. Joue ensemble.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                 ),
                 const Spacer(flex: 4),
-                GtButton(
-                  label: 'CRÉER UN COMPTE',
-                  icon: Icons.person_add_alt_1,
-                  onPressed: () => context.push('/register'),
+                // Panneau en verre avec les actions.
+                GtCard(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    children: [
+                      GtButton(
+                        label: 'CRÉER UN COMPTE',
+                        icon: Icons.person_add_alt_1,
+                        onPressed: () => context.push('/register'),
+                      ),
+                      const SizedBox(height: 12),
+                      GtOutlineButton(
+                        label: 'SE CONNECTER',
+                        icon: Icons.login,
+                        onPressed: () => context.push('/login'),
+                      ),
+                      const SizedBox(height: 12),
+                      _GoogleButton(
+                        loading: state.loading,
+                        onTap: () => ref
+                            .read(authControllerProvider.notifier)
+                            .loginWithGoogle(),
+                      ),
+                      if (state.error != null) ...[
+                        const SizedBox(height: 12),
+                        Text(state.error!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                                color: AppColors.danger, fontSize: 13)),
+                      ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 14),
-                GtOutlineButton(
-                  label: 'SE CONNECTER',
-                  icon: Icons.login,
-                  onPressed: () => context.push('/login'),
-                ),
-                const SizedBox(height: 14),
-                // Connexion Google réelle.
-                _GoogleButton(
-                  loading: state.loading,
-                  onTap: () =>
-                      ref.read(authControllerProvider.notifier).loginWithGoogle(),
-                ),
-                if (state.error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(state.error!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: AppColors.danger, fontSize: 13)),
-                ],
                 const Spacer(flex: 1),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Fin liseré néon dégradé (accent LED).
+class _NeonDivider extends StatelessWidget {
+  const _NeonDivider();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 140,
+      height: 2,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [
+          Colors.transparent,
+          AppColors.primary,
+          AppColors.magenta,
+          Colors.transparent,
+        ]),
+        boxShadow: [
+          BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.6), blurRadius: 8),
+        ],
       ),
     );
   }
@@ -84,12 +180,12 @@ class _GoogleButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(GT.rMd),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(GT.rMd),
         onTap: loading ? null : onTap,
         child: Container(
-          height: 54,
+          height: 52,
           alignment: Alignment.center,
           child: loading
               ? const SizedBox(
@@ -100,7 +196,6 @@ class _GoogleButton extends StatelessWidget {
               : Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // "G" coloré Google (sans logo copyrighté).
                     const Text('G',
                         style: TextStyle(
                           fontSize: 22,
@@ -111,7 +206,7 @@ class _GoogleButton extends StatelessWidget {
                     Text('Continuer avec Google',
                         style: TextStyle(
                           color: Colors.grey.shade800,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                           fontSize: 15,
                         )),
                   ],
